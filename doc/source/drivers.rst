@@ -9,3 +9,4 @@ Available drivers
 
      drivers/wol
      drivers/amt
+     drivers/iboot
