@@ -13,9 +13,12 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from ironic.common import exception as ironic_exception
 from ironic.drivers import base
 from ironic.drivers.modules import fake
+from oslo_utils import importutils
 
+from ironic_staging_drivers.iboot import power as iboot_power
 from ironic_staging_drivers.wol import power as wol_power
 
 
@@ -25,4 +28,16 @@ class FakeWakeOnLanFakeDriver(base.BaseDriver):
     def __init__(self):
         self.boot = fake.FakeBoot()
         self.power = wol_power.WakeOnLanPower()
+        self.deploy = fake.FakeDeploy()
+
+
+class FakeIBootFakeDriver(base.BaseDriver):
+    """Fake iBoot driver."""
+
+    def __init__(self):
+        if not importutils.try_import('iboot'):
+            raise ironic_exception.DriverLoadError(
+                driver=self.__class__.__name__,
+                reason=_("Unable to import iboot library"))
+        self.power = iboot_power.IBootPower()
         self.deploy = fake.FakeDeploy()

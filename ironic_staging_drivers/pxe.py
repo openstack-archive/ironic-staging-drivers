@@ -13,10 +13,13 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from ironic.common import exception as ironic_exception
 from ironic.drivers import base
 from ironic.drivers.modules import iscsi_deploy
 from ironic.drivers.modules import pxe
+from oslo_utils import importutils
 
+from ironic_staging_drivers.iboot import power as iboot_power
 from ironic_staging_drivers.wol import power as wol_power
 
 
@@ -34,5 +37,26 @@ class PXEAndWakeOnLanISCSIDriver(base.BaseDriver):
     def __init__(self):
         self.boot = pxe.PXEBoot()
         self.power = wol_power.WakeOnLanPower()
+        self.deploy = iscsi_deploy.ISCSIDeploy()
+        self.vendor = iscsi_deploy.VendorPassthru()
+
+
+class PXEAndIBootISCSIDriver(base.BaseDriver):
+    """PXE + IBoot PDU driver.
+
+    This driver implements the `core` functionality, combining
+    :class:`ironic_staging_drivers.iboot.power.IBootPower` for power
+    on/off and reboot with
+    :class:`ironic.drivers.modules.iscsi_deploy.ISCSIDeploy` for
+    image deployment.  Implementations are in those respective classes;
+    this class is merely the glue between them.
+    """
+    def __init__(self):
+        if not importutils.try_import('iboot'):
+            raise ironic_exception.DriverLoadError(
+                driver=self.__class__.__name__,
+                reason=_("Unable to import iboot library"))
+        self.power = iboot_power.IBootPower()
+        self.boot = pxe.PXEBoot()
         self.deploy = iscsi_deploy.ISCSIDeploy()
         self.vendor = iscsi_deploy.VendorPassthru()
