@@ -1,4 +1,4 @@
-# Copyright 2016 Red Hat, Inc.
+# Copyright 2015 Intel Corporation
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -13,4 +13,10 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from ironic_staging_drivers.tests.unit import third_party_driver_mocks   # noqa
+"""This module provides mock 'specs' for third party modules that can be used
+when needing to mock those third party modules"""
+
+# iboot
+IBOOT_SPEC = (
+    'iBootInterface',
+)
