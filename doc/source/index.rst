@@ -7,6 +7,7 @@ Contents:
    :maxdepth: 2
 
    README
+   drivers
 
 Indices and tables
 ==================
