@@ -1,3 +1,6 @@
+# Copyright 2016 Red Hat, Inc.
+# All Rights Reserved.
+#
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
 #    a copy of the License at
@@ -10,10 +13,15 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from ironic_staging_drivers.tests import base
+from ironic.drivers import base
+from ironic.drivers.modules import fake
+
+from ironic_staging_drivers.wol import power as wol_power
 
 
-class FooTestCase(base.TestCase):
+class FakeWakeOnLanDriver(base.BaseDriver):
+    """Fake Wake-On-Lan driver."""
 
-    def test_foo(self):
-        pass
+    def __init__(self):
+        self.power = wol_power.WakeOnLanPower()
+        self.deploy = fake.FakeDeploy()
