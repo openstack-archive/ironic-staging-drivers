@@ -8,3 +8,4 @@ Supported drivers
      :maxdepth: 1
 
      drivers/wol
+     drivers/iboot

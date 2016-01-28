@@ -15,28 +15,29 @@
 
 from ironic.common import exception as ironic_exception
 from ironic.drivers import base
-from ironic.drivers.modules import fake
+from ironic.drivers.modules import agent
+from ironic.drivers.modules import pxe
 from oslo_utils import importutils
 
 from ironic_staging_drivers.iboot import power as iboot_power
-from ironic_staging_drivers.wol import power as wol_power
 
 
-class FakeWakeOnLanDriver(base.BaseDriver):
-    """Fake Wake-On-Lan driver."""
+class AgentAndIBootDriver(base.BaseDriver):
+    """Agent + IBoot PDU driver.
 
-    def __init__(self):
-        self.power = wol_power.WakeOnLanPower()
-        self.deploy = fake.FakeDeploy()
-
-
-class FakeIBootDriver(base.BaseDriver):
-    """Fake iBoot driver."""
-
+    This driver implements the `core` functionality, combining
+    :class:`ironic_staging_drivers.iboot.power.IBootPower` for power
+    on/off and reboot with
+    :class:'ironic.driver.modules.agent.AgentDeploy' (for image deployment.)
+    Implementations are in those respective classes;
+    this class is merely the glue between them.
+    """
     def __init__(self):
         if not importutils.try_import('iboot'):
             raise ironic_exception.DriverLoadError(
                 driver=self.__class__.__name__,
                 reason=_("Unable to import iboot library"))
         self.power = iboot_power.IBootPower()
-        self.deploy = fake.FakeDeploy()
+        self.boot = pxe.PXEBoot()
+        self.deploy = agent.AgentDeploy()
+        self.vendor = agent.AgentVendorInterface()
