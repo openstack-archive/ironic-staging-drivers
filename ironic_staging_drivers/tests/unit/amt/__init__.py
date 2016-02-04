@@ -1,4 +1,4 @@
-# Copyright 2016 Red Hat, Inc.
+# Copyright 2014 Hewlett-Packard Development Company, L.P.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -13,19 +13,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from ironic.common import exception
+# NOTE(deva): since __init__ is loaded before the files in the same directory,
+#             and some third-party driver tests may need to have their
+#             external libraries mocked, we load the file which does that
+#             mocking here -- in the __init__.
 
-from ironic_staging_drivers.common.i18n import _
-
-
-class WOLOperationError(exception.IronicException):
-    pass
-
-
-class AMTConnectFailure(exception.IronicException):
-    _msg_fmt = _("Failed to connect to AMT service. This could be caused "
-                 "by the wrong amt_address or bad network environment.")
-
-
-class AMTFailure(exception.IronicException):
-    _msg_fmt = _("AMT call failed: %(cmd)s.")
+from ironic_staging_drivers.tests.unit.amt import pywsman_mocks   # noqa
