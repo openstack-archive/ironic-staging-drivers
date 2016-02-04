@@ -13,10 +13,15 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from ironic.common import exception as ironic_exception
 from ironic.drivers import base
 from ironic.drivers.modules import iscsi_deploy
 from ironic.drivers.modules import pxe
+from oslo_utils import importutils
 
+from ironic_staging_drivers.amt import management as amt_management
+from ironic_staging_drivers.amt import power as amt_power
+from ironic_staging_drivers.amt import vendor as amt_vendor
 from ironic_staging_drivers.wol import power as wol_power
 
 
@@ -36,3 +41,25 @@ class PXEAndWakeOnLanISCSIDriver(base.BaseDriver):
         self.power = wol_power.WakeOnLanPower()
         self.deploy = iscsi_deploy.ISCSIDeploy()
         self.vendor = iscsi_deploy.VendorPassthru()
+
+
+class PXEAndAMTISCSIDriver(base.BaseDriver):
+    """PXE + AMT + iSCSI driver.
+
+    This driver implements the `core` functionality, combining
+    :class:`ironic_staging_drivers.amt.AMTPower` for power on/off and
+    reboot with
+    :class:`ironic.drivers.modules.iscsi_deploy.ISCSIDeploy` for image
+    deployment. Implementations are in those respective classes; this
+    class is merely the glue between them.
+    """
+    def __init__(self):
+        if not importutils.try_import('pywsman'):
+            raise ironic_exception.DriverLoadError(
+                driver=self.__class__.__name__,
+                reason=_("Unable to import pywsman library"))
+        self.power = amt_power.AMTPower()
+        self.boot = pxe.PXEBoot()
+        self.deploy = iscsi_deploy.ISCSIDeploy()
+        self.management = amt_management.AMTManagement()
+        self.vendor = amt_vendor.AMTPXEVendorPassthru()

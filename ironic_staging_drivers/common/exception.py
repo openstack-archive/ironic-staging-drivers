@@ -15,6 +15,17 @@
 
 from ironic.common import exception
 
+from ironic_staging_drivers.common.i18n import _
+
 
 class WolOperationError(exception.IronicException):
     pass
+
+
+class AMTConnectFailure(exception.IronicException):
+    _msg_fmt = _("Failed to connect to AMT service. This could be caused "
+                 "by the wrong amt_address or bad network environment.")
+
+
+class AMTFailure(exception.IronicException):
+    _msg_fmt = _("AMT call failed: %(cmd)s.")
