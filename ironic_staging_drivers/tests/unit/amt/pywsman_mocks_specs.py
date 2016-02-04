@@ -1,4 +1,4 @@
-# Copyright 2016 Red Hat, Inc.
+# Copyright 2015 Intel Corporation
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -13,19 +13,16 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from ironic.common import exception
+"""This module provides mock 'specs' for third party modules that can be used
+when needing to mock those third party modules"""
 
-from ironic_staging_drivers.common.i18n import _
-
-
-class WOLOperationError(exception.IronicException):
-    pass
-
-
-class AMTConnectFailure(exception.IronicException):
-    _msg_fmt = _("Failed to connect to AMT service. This could be caused "
-                 "by the wrong amt_address or bad network environment.")
-
-
-class AMTFailure(exception.IronicException):
-    _msg_fmt = _("AMT call failed: %(cmd)s.")
+PYWSMAN_SPEC = (
+    'Client',
+    'ClientOptions',
+    'EndPointReference',
+    'FLAG_ENUMERATION_OPTIMIZATION',
+    'Filter',
+    'XmlDoc',
+    'wsman_transport_set_verify_host',
+    'wsman_transport_set_verify_peer',
+)

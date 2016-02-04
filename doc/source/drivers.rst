@@ -8,3 +8,4 @@ Available drivers
      :maxdepth: 1
 
      drivers/wol
+     drivers/amt
