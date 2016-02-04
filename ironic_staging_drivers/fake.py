@@ -13,9 +13,13 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from ironic.common import exception as ironic_exception
 from ironic.drivers import base
 from ironic.drivers.modules import fake
+from oslo_utils import importutils
 
+from ironic_staging_drivers.amt import management as amt_mgmt
+from ironic_staging_drivers.amt import power as amt_power
 from ironic_staging_drivers.wol import power as wol_power
 
 
@@ -26,3 +30,16 @@ class FakeWakeOnLanFakeDriver(base.BaseDriver):
         self.boot = fake.FakeBoot()
         self.power = wol_power.WakeOnLanPower()
         self.deploy = fake.FakeDeploy()
+
+
+class FakeAMTFakeDriver(base.BaseDriver):
+    """Fake AMT driver."""
+
+    def __init__(self):
+        if not importutils.try_import('pywsman'):
+            raise ironic_exception.DriverLoadError(
+                driver=self.__class__.__name__,
+                reason=_("Unable to import pywsman library"))
+        self.power = amt_power.AMTPower()
+        self.deploy = fake.FakeDeploy()
+        self.management = amt_mgmt.AMTManagement()

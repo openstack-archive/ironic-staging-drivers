@@ -1,0 +1,2209 @@
+From 2544bce54a4f9e46de1f67bb277554706b23ca4a Mon Sep 17 00:00:00 2001
+From: Lin Tan <lin.tan@intel.com>
+Date: Thu, 4 Feb 2016 14:14:47 +0800
+Subject: [PATCH] Add amt driver
+
+This patch is importing the amt driver and the documentation
+Will replace third_party_driver_mocks in a follow-up patch.
+
+Change-Id: Ief024a4b21dcfdfaa2e2799c44f96044caef49b2
+---
+ doc/source/drivers.rst                             |   5 +
+ doc/source/drivers/amt.rst                         |  89 +++++++
+ ironic_staging_drivers/agent.py                    |  26 ++
+ ironic_staging_drivers/amt/__init__.py             |   0
+ ironic_staging_drivers/amt/common.py               | 256 ++++++++++++++++++
+ ironic_staging_drivers/amt/management.py           | 250 ++++++++++++++++++
+ ironic_staging_drivers/amt/power.py                | 268 +++++++++++++++++++
+ ironic_staging_drivers/amt/resource_uris.py        |  35 +++
+ ironic_staging_drivers/amt/vendor.py               |  39 +++
+ ironic_staging_drivers/common/exception.py         |  11 +
+ ironic_staging_drivers/fake.py                     |  17 ++
+ ironic_staging_drivers/pxe.py                      |  27 ++
+ ironic_staging_drivers/tests/unit/amt/__init__.py  |   0
+ .../tests/unit/amt/test_common.py                  | 217 +++++++++++++++
+ .../tests/unit/amt/test_management.py              | 246 +++++++++++++++++
+ .../tests/unit/amt/test_power.py                   | 294 +++++++++++++++++++++
+ .../tests/unit/amt/test_vendor.py                  | 132 +++++++++
+ ironic_staging_drivers/tests/unit/amt/utils.py     |  72 +++++
+ requirements.txt                                   |   4 +
+ setup.cfg                                          |   5 +-
+ 20 files changed, 1992 insertions(+), 1 deletion(-)
+ create mode 100644 doc/source/drivers/amt.rst
+ create mode 100644 ironic_staging_drivers/amt/__init__.py
+ create mode 100644 ironic_staging_drivers/amt/common.py
+ create mode 100644 ironic_staging_drivers/amt/management.py
+ create mode 100644 ironic_staging_drivers/amt/power.py
+ create mode 100644 ironic_staging_drivers/amt/resource_uris.py
+ create mode 100644 ironic_staging_drivers/amt/vendor.py
+ create mode 100644 ironic_staging_drivers/tests/unit/amt/__init__.py
+ create mode 100644 ironic_staging_drivers/tests/unit/amt/test_common.py
+ create mode 100644 ironic_staging_drivers/tests/unit/amt/test_management.py
+ create mode 100644 ironic_staging_drivers/tests/unit/amt/test_power.py
+ create mode 100644 ironic_staging_drivers/tests/unit/amt/test_vendor.py
+ create mode 100644 ironic_staging_drivers/tests/unit/amt/utils.py
+
+diff --git a/doc/source/drivers.rst b/doc/source/drivers.rst
+index 018cbc9..71a62d3 100644
+--- a/doc/source/drivers.rst
++++ b/doc/source/drivers.rst
+@@ -8,3 +8,8 @@ Supported drivers
+      :maxdepth: 1
+ 
+      drivers/wol
++
++.. toctree::
++     :maxdepth: 1
++
++     drivers/amt
+diff --git a/doc/source/drivers/amt.rst b/doc/source/drivers/amt.rst
+new file mode 100644
+index 0000000..ab5b9f2
+--- /dev/null
++++ b/doc/source/drivers/amt.rst
+@@ -0,0 +1,89 @@
++.. _amt:
++
++===========
++AMT drivers
++===========
++
++Overview
++========
++AMT (Active Management Technology) drivers extend Ironic's range to the
++desktop. AMT/vPro is widely used in desktops to remotely control their power,
++similar to IPMI in servers.
++
++AMT drivers use WS-MAN protocol to interact with AMT clients.
++They work on AMT 7.0/8.0/9.0. AMT 7.0 was released in 2010, so AMT drivers
++should work on most PCs with vPro.
++
++There are two AMT drivers:
++
++* ``pxe_amt_iscsi`` uses AMT for power management and deploys the user image
++  over iSCSI from the conductor.
++
++* ``pxe_amt_agent`` uses AMT for power management and deploys the user image
++  directly to the node via HTTP.
++
++Set up your environment
++=======================
++A detailed reference is available here, and a short guide follows below:
++
++   https://software.intel.com/en-us/articles/intel-active-management-technology-start-here-guide-intel-amt-9#4.2
++
++* Set up AMT Client
++
++  * Choose a system which supports Intel AMT / vPro. Desktop and laptop systems
++    that support this can often be identified by looking at the "Intel" tag for
++    the word ``vPro``.
++
++  * During boot, press Ctrl+P to enter Intel MEBx management.
++
++  * Reset password -- default is ``admin``. The new password must contain at
++    least one upper case letter, one lower case letter, one digit and one
++    special character, and be at least eight characters.
++
++  * Go to Intel AMT Configuration:
++
++    * Enable all features under SOL/IDER/KVM section
++
++    * Select User Consent and choose None (No password is needed)
++
++    * Select Network Setup section and set IP
++
++    * Activate Network Access
++
++  * MEBx Exit
++
++  * Restart and enable PXE boot in bios
++
++* Install ``openwsman`` on servers where ``ironic-conductor`` is running:
++
++  * Fedora/RHEL: ``openwsman-python``.
++
++  * Ubuntu: ``python-openwsman``'s most recent version is 2.4.3 which
++    is enough.
++
++  * Or build it yourself from: https://github.com/Openwsman/openwsman
++
++* Enable the ``pxe_amt_iscsi`` or ``pxe_amt_agent`` driver by adding it to the
++  configuration option ``enabled_drivers`` (typically located at
++  ``/etc/ironic/ironic.conf``) and restart the ``ironic-conductor``
++  process::
++
++    service ironic-conductor restart
++
++* Enroll an AMT node
++
++* Specify these driver_info properties for the node: ``amt_password``,
++   ``amt_address``, and ``amt_username``
++
++* Boot an instance
++
++.. note::
++    It is recommended that nodes using the pxe_amt* driver be deployed with the
++    `local boot`_ option. This is because the AMT firmware currently has no
++    support for setting a persistent boot device. Nodes deployed without the
++    `local boot`_ option could fail to boot if they are restarted outside of
++    Ironic's control (I.E. rebooted by a local user) because the node will
++    not attempt to PXE / network boot the kernel, using `local boot`_ solves this
++    known issue.
++
++.. _`local boot`: http://docs.openstack.org/developer/ironic/deploy/install-guide.html#local-boot-with-partition-images
+diff --git a/ironic_staging_drivers/agent.py b/ironic_staging_drivers/agent.py
+index 6941196..15fe704 100644
+--- a/ironic_staging_drivers/agent.py
++++ b/ironic_staging_drivers/agent.py
+@@ -13,10 +13,14 @@
+ #    License for the specific language governing permissions and limitations
+ #    under the License.
+ 
++from ironic.common import exception as ironic_exception
+ from ironic.drivers import base
+ from ironic.drivers.modules import agent
+ from ironic.drivers.modules import pxe
++from oslo_utils import importutils
+ 
++from ironic_staging_drivers.amt import management as amt_management
++from ironic_staging_drivers.amt import power as amt_power
+ from ironic_staging_drivers.wol import power as wol_power
+ 
+ 
+@@ -36,3 +40,25 @@ class PXEAndWakeOnLanAgentDriver(base.BaseDriver):
+         self.power = wol_power.WakeOnLanPower()
+         self.deploy = agent.AgentDeploy()
+         self.vendor = agent.AgentVendorInterface()
++
++
++class AgentAndAMTAgentDriver(base.BaseDriver):
++    """Agent + AMT + Agent driver.
++
++    This driver implements the `core` functionality, combining
++    :class:`ironic_staging_drivers.amt.AMTPower` for power on/off and
++    reboot with
++    :class:`ironic.drivers.modules.agent_deploy.AgentDeploy` for image
++    deployment. Implementations are in those respective classes; this
++    class is merely the glue between them.
++    """
++    def __init__(self):
++        if not importutils.try_import('pywsman'):
++            raise ironic_exception.DriverLoadError(
++                driver=self.__class__.__name__,
++                reason=_("Unable to import pywsman library"))
++        self.power = amt_power.AMTPower()
++        self.boot = pxe.PXEBoot()
++        self.deploy = agent.AgentDeploy()
++        self.management = amt_management.AMTManagement()
++        self.vendor = agent.AgentVendorInterface()
+diff --git a/ironic_staging_drivers/amt/__init__.py b/ironic_staging_drivers/amt/__init__.py
+new file mode 100644
+index 0000000..e69de29
+diff --git a/ironic_staging_drivers/amt/common.py b/ironic_staging_drivers/amt/common.py
+new file mode 100644
+index 0000000..e16a53c
+--- /dev/null
++++ b/ironic_staging_drivers/amt/common.py
+@@ -0,0 +1,256 @@
++#
++# Licensed under the Apache License, Version 2.0 (the "License"); you may
++# not use this file except in compliance with the License. You may obtain
++# a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++# License for the specific language governing permissions and limitations
++# under the License.
++"""
++Common functionalities for AMT Driver
++"""
++import time
++from xml.etree import ElementTree
++
++from ironic.common import boot_devices
++from ironic.common import exception as ironic_exception
++from ironic.common import utils as ironic_utils
++from oslo_concurrency import processutils
++from oslo_config import cfg
++from oslo_log import log as logging
++from oslo_utils import importutils
++import six
++
++from ironic_staging_drivers.common import exception
++from ironic_staging_drivers.common.i18n import _
++from ironic_staging_drivers.common.i18n import _LE
++
++pywsman = importutils.try_import('pywsman')
++
++_SOAP_ENVELOPE = 'http://www.w3.org/2003/05/soap-envelope'
++
++LOG = logging.getLogger(__name__)
++
++REQUIRED_PROPERTIES = {
++    'amt_address': _('IP address or host name of the node. Required.'),
++    'amt_password': _('Password. Required.'),
++    'amt_username': _('Username to log into AMT system. Required.'),
++}
++OPTIONAL_PROPERTIES = {
++    'amt_protocol': _('Protocol used for AMT endpoint. one of http, https; '
++                      'default is "http". Optional.'),
++}
++COMMON_PROPERTIES = REQUIRED_PROPERTIES.copy()
++COMMON_PROPERTIES.update(OPTIONAL_PROPERTIES)
++
++opts = [
++    cfg.StrOpt('protocol',
++               default='http',
++               choices=['http', 'https'],
++               help=_('Protocol used for AMT endpoint, '
++                      'support http/https')),
++    cfg.IntOpt('awake_interval',
++               default=60,
++               min=0,
++               help=_('Time interval (in seconds) for successive awake call '
++                      'to AMT interface, this depends on the IdleTimeout '
++                      'setting on AMT interface. AMT Interface will go to '
++                      'sleep after 60 seconds of inactivity by default. '
++                      'IdleTimeout=0 means AMT will not go to sleep at all. '
++                      'Setting awake_interval=0 will disable awake call.')),
++]
++
++CONF = cfg.CONF
++opt_group = cfg.OptGroup(name='amt',
++                         title='Options for the AMT power driver')
++CONF.register_group(opt_group)
++CONF.register_opts(opts, opt_group)
++
++# TODO(lintan): More boot devices are supported by AMT, but not useful
++# currently. Add them in the future.
++BOOT_DEVICES_MAPPING = {
++    boot_devices.PXE: 'Intel(r) AMT: Force PXE Boot',
++    boot_devices.DISK: 'Intel(r) AMT: Force Hard-drive Boot',
++    boot_devices.CDROM: 'Intel(r) AMT: Force CD/DVD Boot',
++}
++DEFAULT_BOOT_DEVICE = boot_devices.DISK
++
++AMT_PROTOCOL_PORT_MAP = {
++    'http': 16992,
++    'https': 16993,
++}
++
++# ReturnValue constants
++RET_SUCCESS = '0'
++
++# A dict cache last awake call to AMT Interface
++AMT_AWAKE_CACHE = {}
++
++
++class Client(object):
++    """AMT client.
++
++    Create a pywsman client to connect to the target server
++    """
++    def __init__(self, address, protocol, username, password):
++        port = AMT_PROTOCOL_PORT_MAP[protocol]
++        path = '/wsman'
++        self.client = pywsman.Client(address, port, path, protocol,
++                                     username, password)
++
++    def wsman_get(self, resource_uri, options=None):
++        """Get target server info
++
++        :param options: client options
++        :param resource_uri: a URI to an XML schema
++        :returns: XmlDoc object
++        :raises: AMTFailure if get unexpected response.
++        :raises: AMTConnectFailure if unable to connect to the server.
++        """
++        if options is None:
++            options = pywsman.ClientOptions()
++        doc = self.client.get(options, resource_uri)
++        item = 'Fault'
++        fault = xml_find(doc, _SOAP_ENVELOPE, item)
++        if fault is not None:
++            LOG.error(_LE('Call to AMT with URI %(uri)s failed: '
++                          'got Fault %(fault)s'),
++                      {'uri': resource_uri, 'fault': fault.text})
++            raise exception.AMTFailure(cmd='wsman_get')
++        return doc
++
++    def wsman_invoke(self, options, resource_uri, method, data=None):
++        """Invoke method on target server
++
++        :param options: client options
++        :param resource_uri: a URI to an XML schema
++        :param method: invoke method
++        :param data: a XmlDoc as invoke input
++        :returns: XmlDoc object
++        :raises: AMTFailure if get unexpected response.
++        :raises: AMTConnectFailure if unable to connect to the server.
++        """
++        if data is None:
++            doc = self.client.invoke(options, resource_uri, method)
++        else:
++            doc = self.client.invoke(options, resource_uri, method, data)
++        item = "ReturnValue"
++        return_value = xml_find(doc, resource_uri, item).text
++        if return_value != RET_SUCCESS:
++            LOG.error(_LE("Call to AMT with URI %(uri)s and "
++                          "method %(method)s failed: return value "
++                          "was %(value)s"),
++                      {'uri': resource_uri, 'method': method,
++                       'value': return_value})
++            raise exception.AMTFailure(cmd='wsman_invoke')
++        return doc
++
++
++def parse_driver_info(node):
++    """Parses and creates AMT driver info
++
++    :param node: an Ironic node object.
++    :returns: AMT driver info.
++    :raises: MissingParameterValue if any required parameters are missing.
++    :raises: InvalidParameterValue if any parameters have invalid values.
++    """
++
++    info = node.driver_info or {}
++    d_info = {}
++    missing_info = []
++
++    for param in REQUIRED_PROPERTIES:
++        value = info.get(param)
++        if value:
++            if not isinstance(value, six.binary_type):
++                value = value.encode()
++            d_info[param[4:]] = value
++        else:
++            missing_info.append(param)
++
++    if missing_info:
++        raise ironic_exception.MissingParameterValue(_(
++            "AMT driver requires the following to be set in "
++            "node's driver_info: %s.") % missing_info)
++
++    d_info['uuid'] = node.uuid
++    param = 'amt_protocol'
++    protocol = info.get(param, CONF.amt.get(param[4:]))
++    if protocol not in AMT_PROTOCOL_PORT_MAP:
++        raise ironic_exception.InvalidParameterValue(
++            _("Invalid protocol %s.") % protocol)
++    if not isinstance(value, six.binary_type):
++        protocol = protocol.encode()
++    d_info[param[4:]] = protocol
++
++    return d_info
++
++
++def get_wsman_client(node):
++    """Return a AMT Client object
++
++    :param node: an Ironic node object.
++    :returns: a Client object
++    :raises: MissingParameterValue if any required parameters are missing.
++    :raises: InvalidParameterValue if any parameters have invalid values.
++    """
++    driver_info = parse_driver_info(node)
++    client = Client(address=driver_info['address'],
++                    protocol=driver_info['protocol'],
++                    username=driver_info['username'],
++                    password=driver_info['password'])
++    return client
++
++
++def xml_find(doc, namespace, item):
++    """Find the first element with namespace and item, in the XML doc
++
++    :param doc: a doc object.
++    :param namespace: the namespace of the element.
++    :param item: the element name.
++    :returns: the element object or None
++    :raises: AMTConnectFailure if unable to connect to the server.
++    """
++    if doc is None:
++        raise exception.AMTConnectFailure()
++    tree = ElementTree.fromstring(doc.root().string())
++    query = ('.//{%(namespace)s}%(item)s' % {'namespace': namespace,
++                                             'item': item})
++    return tree.find(query)
++
++
++def awake_amt_interface(node):
++    """Wake up AMT interface.
++
++    AMT interface goes to sleep after a period of time if the host is off.
++    This method will ping AMT interface to wake it up. Because there is
++    no guarantee that the AMT address in driver_info is correct, only
++    ping the IP five times which is enough to wake it up.
++
++    :param node: an Ironic node object.
++    :raises: AMTConnectFailure if unable to connect to the server.
++    """
++    awake_interval = CONF.amt.awake_interval
++    if awake_interval == 0:
++        return
++
++    now = time.time()
++    last_awake = AMT_AWAKE_CACHE.get(node.uuid, 0)
++    if now - last_awake > awake_interval:
++        cmd_args = ['ping', '-i', 0.2, '-c', 5,
++                    node.driver_info['amt_address']]
++        try:
++            ironic_utils.execute(*cmd_args)
++        except processutils.ProcessExecutionError as err:
++            LOG.error(_LE('Unable to awake AMT interface on node '
++                          '%(node_id)s. Error: %(error)s'),
++                      {'node_id': node.uuid, 'error': err})
++            raise exception.AMTConnectFailure()
++        else:
++            LOG.debug(('Successfully awakened AMT interface on node '
++                       '%(node_id)s.'), {'node_id': node.uuid})
++            AMT_AWAKE_CACHE[node.uuid] = now
+diff --git a/ironic_staging_drivers/amt/management.py b/ironic_staging_drivers/amt/management.py
+new file mode 100644
+index 0000000..3d5b6e6
+--- /dev/null
++++ b/ironic_staging_drivers/amt/management.py
+@@ -0,0 +1,250 @@
++#
++# Licensed under the Apache License, Version 2.0 (the "License"); you may
++# not use this file except in compliance with the License. You may obtain
++# a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++# License for the specific language governing permissions and limitations
++# under the License.
++
++"""
++AMT Management Driver
++"""
++import copy
++
++from ironic.common import exception as ironic_exception
++from ironic.conductor import task_manager
++from ironic.drivers import base
++from oslo_log import log as logging
++from oslo_utils import excutils
++from oslo_utils import importutils
++
++from ironic_staging_drivers.amt import common as amt_common
++from ironic_staging_drivers.amt import resource_uris
++from ironic_staging_drivers.common import exception
++from ironic_staging_drivers.common.i18n import _
++from ironic_staging_drivers.common.i18n import _LE
++from ironic_staging_drivers.common.i18n import _LI
++
++pywsman = importutils.try_import('pywsman')
++
++LOG = logging.getLogger(__name__)
++
++
++_ADDRESS = 'http://schemas.xmlsoap.org/ws/2004/08/addressing'
++_ANONYMOUS = 'http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous'
++_WSMAN = 'http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd'
++
++
++def _generate_change_boot_order_input(device):
++    """Generate Xmldoc as change_boot_order input.
++
++    This generates a Xmldoc used as input for change_boot_order.
++
++    :param device: the boot device.
++    :returns: Xmldoc.
++    """
++    method_input = "ChangeBootOrder_INPUT"
++    namespace = resource_uris.CIM_BootConfigSetting
++    doc = pywsman.XmlDoc(method_input)
++    root = doc.root()
++    root.set_ns(namespace)
++
++    child = root.add(namespace, 'Source', None)
++    child.add(_ADDRESS, 'Address', _ANONYMOUS)
++
++    grand_child = child.add(_ADDRESS, 'ReferenceParameters', None)
++    grand_child.add(_WSMAN, 'ResourceURI', resource_uris.CIM_BootSourceSetting)
++    g_grand_child = grand_child.add(_WSMAN, 'SelectorSet', None)
++    g_g_grand_child = g_grand_child.add(_WSMAN, 'Selector', device)
++    g_g_grand_child.attr_add(_WSMAN, 'Name', 'InstanceID')
++    return doc
++
++
++def _set_boot_device_order(node, boot_device):
++    """Set boot device order configuration of AMT Client.
++
++    :param node: a node object
++    :param boot_device: the boot device
++    :raises: AMTFailure
++    :raises: AMTConnectFailure
++    """
++    amt_common.awake_amt_interface(node)
++    client = amt_common.get_wsman_client(node)
++    device = amt_common.BOOT_DEVICES_MAPPING[boot_device]
++    doc = _generate_change_boot_order_input(device)
++
++    method = 'ChangeBootOrder'
++
++    options = pywsman.ClientOptions()
++    options.add_selector('InstanceID', 'Intel(r) AMT: Boot Configuration 0')
++
++    try:
++        client.wsman_invoke(options, resource_uris.CIM_BootConfigSetting,
++                            method, doc)
++    except (exception.AMTFailure, exception.AMTConnectFailure) as e:
++        with excutils.save_and_reraise_exception():
++            LOG.exception(_LE("Failed to set boot device %(boot_device)s for "
++                              "node %(node_id)s with error: %(error)s."),
++                          {'boot_device': boot_device, 'node_id': node.uuid,
++                           'error': e})
++    else:
++        LOG.info(_LI("Successfully set boot device %(boot_device)s for "
++                     "node %(node_id)s"),
++                 {'boot_device': boot_device, 'node_id': node.uuid})
++
++
++def _generate_enable_boot_config_input():
++    """Generate Xmldoc as enable_boot_config input.
++
++    This generates a Xmldoc used as input for enable_boot_config.
++
++    :returns: Xmldoc.
++    """
++    method_input = "SetBootConfigRole_INPUT"
++    namespace = resource_uris.CIM_BootService
++    doc = pywsman.XmlDoc(method_input)
++    root = doc.root()
++    root.set_ns(namespace)
++
++    child = root.add(namespace, 'BootConfigSetting', None)
++    child.add(_ADDRESS, 'Address', _ANONYMOUS)
++
++    grand_child = child.add(_ADDRESS, 'ReferenceParameters', None)
++    grand_child.add(_WSMAN, 'ResourceURI', resource_uris.CIM_BootConfigSetting)
++    g_grand_child = grand_child.add(_WSMAN, 'SelectorSet', None)
++    g_g_grand_child = g_grand_child.add(_WSMAN, 'Selector',
++                                        'Intel(r) AMT: Boot Configuration 0')
++    g_g_grand_child.attr_add(_WSMAN, 'Name', 'InstanceID')
++    root.add(namespace, 'Role', '1')
++    return doc
++
++
++def _enable_boot_config(node):
++    """Enable boot configuration of AMT Client.
++
++    :param node: a node object
++    :raises: AMTFailure
++    :raises: AMTConnectFailure
++    """
++    amt_common.awake_amt_interface(node)
++    client = amt_common.get_wsman_client(node)
++    method = 'SetBootConfigRole'
++    doc = _generate_enable_boot_config_input()
++    options = pywsman.ClientOptions()
++    options.add_selector('Name', 'Intel(r) AMT Boot Service')
++    try:
++        client.wsman_invoke(options, resource_uris.CIM_BootService,
++                            method, doc)
++    except (exception.AMTFailure, exception.AMTConnectFailure) as e:
++        with excutils.save_and_reraise_exception():
++            LOG.exception(_LE("Failed to enable boot config for node "
++                              "%(node_id)s with error: %(error)s."),
++                          {'node_id': node.uuid, 'error': e})
++    else:
++        LOG.info(_LI("Successfully enabled boot config for node %(node_id)s."),
++                 {'node_id': node.uuid})
++
++
++class AMTManagement(base.ManagementInterface):
++
++    def get_properties(self):
++        return copy.deepcopy(amt_common.COMMON_PROPERTIES)
++
++    def validate(self, task):
++        """Validate the driver_info in the node
++
++        Check if the driver_info contains correct required fields
++
++        :param task: a TaskManager instance contains the target node
++        :raises: MissingParameterValue if any required parameters are missing.
++        :raises: InvalidParameterValue if any parameters have invalid values.
++        """
++        # FIXME(lintan): validate hangs if unable to reach AMT, so dont
++        # connect to the node until bug 1314961 is resolved.
++        amt_common.parse_driver_info(task.node)
++
++    def get_supported_boot_devices(self, task):
++        """Get a list of the supported boot devices.
++
++        :param task: a task from TaskManager.
++        :returns: A list with the supported boot devices.
++        """
++        return list(amt_common.BOOT_DEVICES_MAPPING)
++
++    @task_manager.require_exclusive_lock
++    def set_boot_device(self, task, device, persistent=False):
++        """Set the boot device for the task's node.
++
++        Set the boot device to use on next boot of the node.
++
++        :param task: a task from TaskManager.
++        :param device: the boot device
++        :param persistent: Boolean value. True if the boot device will
++                           persist to all future boots, False if not.
++                           Default: False.
++        :raises: InvalidParameterValue if an invalid boot device is specified.
++        """
++        node = task.node
++
++        if device not in amt_common.BOOT_DEVICES_MAPPING:
++            raise ironic_exception.InvalidParameterValue(
++                _("set_boot_device called with invalid device "
++                  "%(device)s for node %(node_id)s."
++                  ) % {'device': device, 'node_id': node.uuid})
++
++        # AMT/vPro doesn't support set boot_device persistent, so we have to
++        # save amt_boot_device/amt_boot_persistent in driver_internal_info.
++        driver_internal_info = node.driver_internal_info
++        driver_internal_info['amt_boot_device'] = device
++        driver_internal_info['amt_boot_persistent'] = persistent
++        node.driver_internal_info = driver_internal_info
++        node.save()
++
++    def get_boot_device(self, task):
++        """Get the current boot device for the task's node.
++
++        Returns the current boot device of the node.
++
++        :param task: a task from TaskManager.
++        :returns: a dictionary containing:
++
++             :boot_device: the boot device
++             :persistent: Whether the boot device will persist to all
++                future boots or not, None if it is unknown.
++
++        """
++        driver_internal_info = task.node.driver_internal_info
++        device = driver_internal_info.get('amt_boot_device')
++        persistent = driver_internal_info.get('amt_boot_persistent')
++        if not device:
++            device = amt_common.DEFAULT_BOOT_DEVICE
++            persistent = True
++        return {'boot_device': device,
++                'persistent': persistent}
++
++    def ensure_next_boot_device(self, node, boot_device):
++        """Set next boot device (one time only) of AMT Client.
++
++        :param node: a node object
++        :param boot_device: the boot device
++        :raises: AMTFailure
++        :raises: AMTConnectFailure
++        """
++        driver_internal_info = node.driver_internal_info
++        if not driver_internal_info.get('amt_boot_persistent'):
++            driver_internal_info['amt_boot_device'] = (
++                amt_common.DEFAULT_BOOT_DEVICE)
++            driver_internal_info['amt_boot_persistent'] = True
++            node.driver_internal_info = driver_internal_info
++            node.save()
++
++        _set_boot_device_order(node, boot_device)
++        _enable_boot_config(node)
++
++    def get_sensors_data(self, task):
++        raise NotImplementedError()
+diff --git a/ironic_staging_drivers/amt/power.py b/ironic_staging_drivers/amt/power.py
+new file mode 100644
+index 0000000..ca1463c
+--- /dev/null
++++ b/ironic_staging_drivers/amt/power.py
+@@ -0,0 +1,268 @@
++#
++# Licensed under the Apache License, Version 2.0 (the "License"); you may
++# not use this file except in compliance with the License. You may obtain
++# a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++# License for the specific language governing permissions and limitations
++# under the License.
++
++"""
++AMT Power Driver
++"""
++import copy
++
++from ironic.common import exception as ironic_exception
++from ironic.common import states
++from ironic.conductor import task_manager
++from ironic.drivers import base
++from oslo_config import cfg
++from oslo_log import log as logging
++from oslo_service import loopingcall
++from oslo_utils import excutils
++from oslo_utils import importutils
++
++from ironic_staging_drivers.amt import common as amt_common
++from ironic_staging_drivers.amt import resource_uris
++from ironic_staging_drivers.common import exception
++from ironic_staging_drivers.common.i18n import _
++from ironic_staging_drivers.common.i18n import _LE
++from ironic_staging_drivers.common.i18n import _LI
++from ironic_staging_drivers.common.i18n import _LW
++
++pywsman = importutils.try_import('pywsman')
++
++opts = [
++    cfg.IntOpt('max_attempts',
++               default=3,
++               help=_('Maximum number of times to attempt an AMT operation, '
++                      'before failing')),
++    cfg.IntOpt('action_wait',
++               default=10,
++               help=_('Amount of time (in seconds) to wait, before retrying '
++                      'an AMT operation'))
++]
++
++CONF = cfg.CONF
++CONF.register_opts(opts, group='amt')
++
++LOG = logging.getLogger(__name__)
++
++AMT_POWER_MAP = {
++    states.POWER_ON: '2',
++    states.POWER_OFF: '8',
++}
++
++
++def _generate_power_action_input(action):
++    """Generate Xmldoc as set_power_state input.
++
++    This generates a Xmldoc used as input for set_power_state.
++
++    :param action: the power action.
++    :returns: Xmldoc.
++    """
++    method_input = "RequestPowerStateChange_INPUT"
++    address = 'http://schemas.xmlsoap.org/ws/2004/08/addressing'
++    anonymous = ('http://schemas.xmlsoap.org/ws/2004/08/addressing/'
++                 'role/anonymous')
++    wsman = 'http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd'
++    namespace = resource_uris.CIM_PowerManagementService
++
++    doc = pywsman.XmlDoc(method_input)
++    root = doc.root()
++    root.set_ns(namespace)
++    root.add(namespace, 'PowerState', action)
++
++    child = root.add(namespace, 'ManagedElement', None)
++    child.add(address, 'Address', anonymous)
++
++    grand_child = child.add(address, 'ReferenceParameters', None)
++    grand_child.add(wsman, 'ResourceURI', resource_uris.CIM_ComputerSystem)
++
++    g_grand_child = grand_child.add(wsman, 'SelectorSet', None)
++    g_g_grand_child = g_grand_child.add(wsman, 'Selector', 'ManagedSystem')
++    g_g_grand_child.attr_add(wsman, 'Name', 'Name')
++    return doc
++
++
++def _set_power_state(node, target_state):
++    """Set power state of the AMT Client.
++
++    :param node: a node object.
++    :param target_state: desired power state.
++    :raises: AMTFailure
++    :raises: AMTConnectFailure
++    """
++    amt_common.awake_amt_interface(node)
++    client = amt_common.get_wsman_client(node)
++
++    method = 'RequestPowerStateChange'
++    options = pywsman.ClientOptions()
++    options.add_selector('Name', 'Intel(r) AMT Power Management Service')
++
++    doc = _generate_power_action_input(AMT_POWER_MAP[target_state])
++    try:
++        client.wsman_invoke(options, resource_uris.CIM_PowerManagementService,
++                            method, doc)
++    except (exception.AMTFailure, exception.AMTConnectFailure) as e:
++        with excutils.save_and_reraise_exception():
++            LOG.exception(_LE("Failed to set power state %(state)s for "
++                              "node %(node_id)s with error: %(error)s."),
++                          {'state': target_state, 'node_id': node.uuid,
++                           'error': e})
++    else:
++        LOG.info(_LI("Power state set to %(state)s for node %(node_id)s"),
++                 {'state': target_state, 'node_id': node.uuid})
++
++
++def _power_status(node):
++    """Get the power status for a node.
++
++    :param node: a node object.
++    :returns: one of ironic.common.states POWER_OFF, POWER_ON or ERROR.
++    :raises: AMTFailure.
++    :raises: AMTConnectFailure.
++    """
++    amt_common.awake_amt_interface(node)
++    client = amt_common.get_wsman_client(node)
++    namespace = resource_uris.CIM_AssociatedPowerManagementService
++    try:
++        doc = client.wsman_get(namespace)
++    except (exception.AMTFailure, exception.AMTConnectFailure) as e:
++        with excutils.save_and_reraise_exception():
++            LOG.exception(_LE("Failed to get power state for node %(node_id)s "
++                              "with error: %(error)s."),
++                          {'node_id': node.uuid, 'error': e})
++
++    item = "PowerState"
++    power_state = amt_common.xml_find(doc, namespace, item).text
++    for state in AMT_POWER_MAP:
++        if power_state == AMT_POWER_MAP[state]:
++            return state
++    return states.ERROR
++
++
++def _set_and_wait(task, target_state):
++    """Helper function for DynamicLoopingCall.
++
++    This method changes the power state and polls AMT until the desired
++    power state is reached.
++
++    :param task: a TaskManager instance contains the target node.
++    :param target_state: desired power state.
++    :returns: one of ironic.common.states.
++    :raises: PowerStateFailure if cannot set the node to target_state.
++    :raises: AMTFailure.
++    :raises: AMTConnectFailure
++    :raises: InvalidParameterValue
++    """
++    node = task.node
++    driver = task.driver
++    if target_state not in (states.POWER_ON, states.POWER_OFF):
++        raise ironic_exception.InvalidParameterValue(_(
++            'Unsupported target_state: %s') % target_state)
++    elif target_state == states.POWER_ON:
++        boot_device = node.driver_internal_info.get('amt_boot_device')
++        if boot_device and boot_device != amt_common.DEFAULT_BOOT_DEVICE:
++            driver.management.ensure_next_boot_device(node, boot_device)
++
++    def _wait(status):
++        status['power'] = _power_status(node)
++        if status['power'] == target_state:
++            raise loopingcall.LoopingCallDone()
++
++        if status['iter'] >= CONF.amt.max_attempts:
++            status['power'] = states.ERROR
++            LOG.warning(_LW("AMT failed to set power state %(state)s after "
++                            "%(tries)s retries on node %(node_id)s."),
++                        {'state': target_state, 'tries': status['iter'],
++                         'node_id': node.uuid})
++            raise loopingcall.LoopingCallDone()
++
++        try:
++            _set_power_state(node, target_state)
++        except Exception:
++            # Log failures but keep trying
++            LOG.warning(_LW("AMT set power state %(state)s for node %(node)s "
++                            "- Attempt %(attempt)s times of %(max_attempt)s "
++                            "failed."),
++                        {'state': target_state, 'node': node.uuid,
++                         'attempt': status['iter'] + 1,
++                         'max_attempt': CONF.amt.max_attempts})
++        status['iter'] += 1
++
++    status = {'power': None, 'iter': 0}
++
++    timer = loopingcall.FixedIntervalLoopingCall(_wait, status)
++    timer.start(interval=CONF.amt.action_wait).wait()
++
++    if status['power'] != target_state:
++        raise ironic_exception.PowerStateFailure(pstate=target_state)
++
++    return status['power']
++
++
++class AMTPower(base.PowerInterface):
++    """AMT Power interface.
++
++    This Power interface control the power of node by providing power on/off
++    and reset functions.
++    """
++
++    def get_properties(self):
++        return copy.deepcopy(amt_common.COMMON_PROPERTIES)
++
++    def validate(self, task):
++        """Validate the driver_info in the node.
++
++        Check if the driver_info contains correct required fields
++
++        :param task: a TaskManager instance contains the target node.
++        :raises: MissingParameterValue if any required parameters are missing.
++        :raises: InvalidParameterValue if any parameters have invalid values.
++        """
++        # FIXME(lintan): validate hangs if unable to reach AMT, so dont
++        # connect to the node until bug 1314961 is resolved.
++        amt_common.parse_driver_info(task.node)
++
++    def get_power_state(self, task):
++        """Get the power state from the node.
++
++        :param task: a TaskManager instance contains the target node.
++        :raises: AMTFailure.
++        :raises: AMTConnectFailure.
++        """
++        return _power_status(task.node)
++
++    @task_manager.require_exclusive_lock
++    def set_power_state(self, task, pstate):
++        """Set the power state of the node.
++
++        Turn the node power on or off.
++
++        :param task: a TaskManager instance contains the target node.
++        :param pstate: The desired power state of the node.
++        :raises: PowerStateFailure if the power cannot set to pstate.
++        :raises: AMTFailure.
++        :raises: AMTConnectFailure.
++        :raises: InvalidParameterValue
++        """
++        _set_and_wait(task, pstate)
++
++    @task_manager.require_exclusive_lock
++    def reboot(self, task):
++        """Cycle the power of the node
++
++        :param task: a TaskManager instance contains the target node.
++        :raises: PowerStateFailure if failed to reboot.
++        :raises: AMTFailure.
++        :raises: AMTConnectFailure.
++        :raises: InvalidParameterValue
++        """
++        _set_and_wait(task, states.POWER_OFF)
++        _set_and_wait(task, states.POWER_ON)
+diff --git a/ironic_staging_drivers/amt/resource_uris.py b/ironic_staging_drivers/amt/resource_uris.py
+new file mode 100644
+index 0000000..b2e12f5
+--- /dev/null
++++ b/ironic_staging_drivers/amt/resource_uris.py
+@@ -0,0 +1,35 @@
++#
++# Licensed under the Apache License, Version 2.0 (the "License"); you may
++# not use this file except in compliance with the License. You may obtain
++# a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++# License for the specific language governing permissions and limitations
++# under the License.
++
++"""
++XML Schemas to define the requests sent to AMT
++"""
++
++CIM_AssociatedPowerManagementService = ('http://schemas.dmtf.org/wbem/wscim/'
++                                        '1/cim-schema/2/'
++                                        'CIM_AssociatedPowerManagementService')
++
++CIM_PowerManagementService = ('http://schemas.dmtf.org/wbem/wscim/1/'
++                              'cim-schema/2/CIM_PowerManagementService')
++
++CIM_ComputerSystem = ('http://schemas.dmtf.org/wbem/wscim/'
++                      '1/cim-schema/2/CIM_ComputerSystem')
++
++CIM_BootConfigSetting = ('http://schemas.dmtf.org/wbem/wscim/'
++                         '1/cim-schema/2/CIM_BootConfigSetting')
++
++CIM_BootSourceSetting = ('http://schemas.dmtf.org/wbem/wscim/'
++                         '1/cim-schema/2/CIM_BootSourceSetting')
++
++CIM_BootService = ('http://schemas.dmtf.org/wbem/wscim/'
++                   '1/cim-schema/2/CIM_BootService')
+diff --git a/ironic_staging_drivers/amt/vendor.py b/ironic_staging_drivers/amt/vendor.py
+new file mode 100644
+index 0000000..d0d3a7f
+--- /dev/null
++++ b/ironic_staging_drivers/amt/vendor.py
+@@ -0,0 +1,39 @@
++#
++# Licensed under the Apache License, Version 2.0 (the "License"); you may
++# not use this file except in compliance with the License. You may obtain
++# a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++# License for the specific language governing permissions and limitations
++# under the License.
++"""
++AMT Vendor Methods
++"""
++
++from ironic.common import boot_devices
++from ironic.conductor import task_manager
++from ironic.drivers import base
++from ironic.drivers.modules import deploy_utils
++from ironic.drivers.modules import iscsi_deploy
++
++
++class AMTPXEVendorPassthru(iscsi_deploy.VendorPassthru):
++
++    @base.passthru(['POST'])
++    @task_manager.require_exclusive_lock
++    def pass_deploy_info(self, task, **kwargs):
++        if deploy_utils.get_boot_option(task.node) == "netboot":
++            task.driver.management.ensure_next_boot_device(task.node,
++                                                           boot_devices.PXE)
++        super(AMTPXEVendorPassthru, self).pass_deploy_info(task, **kwargs)
++
++    @task_manager.require_exclusive_lock
++    def continue_deploy(self, task, **kwargs):
++        if deploy_utils.get_boot_option(task.node) == "netboot":
++            task.driver.management.ensure_next_boot_device(task.node,
++                                                           boot_devices.PXE)
++        super(AMTPXEVendorPassthru, self).continue_deploy(task, **kwargs)
+diff --git a/ironic_staging_drivers/common/exception.py b/ironic_staging_drivers/common/exception.py
+index 9fbe55f..504f396 100644
+--- a/ironic_staging_drivers/common/exception.py
++++ b/ironic_staging_drivers/common/exception.py
+@@ -15,6 +15,17 @@
+ 
+ from ironic.common import exception
+ 
++from ironic_staging_drivers.common.i18n import _
++
+ 
+ class WolOperationError(exception.IronicException):
+     pass
++
++
++class AMTConnectFailure(exception.IronicException):
++    _msg_fmt = _("Failed to connect to AMT service. This could be caused "
++                 "by the wrong amt_address or bad network environment.")
++
++
++class AMTFailure(exception.IronicException):
++    _msg_fmt = _("AMT call failed: %(cmd)s.")
+diff --git a/ironic_staging_drivers/fake.py b/ironic_staging_drivers/fake.py
+index 6784e02..8ef20ab 100644
+--- a/ironic_staging_drivers/fake.py
++++ b/ironic_staging_drivers/fake.py
+@@ -13,9 +13,13 @@
+ #    License for the specific language governing permissions and limitations
+ #    under the License.
+ 
++from ironic.common import exception as ironic_exception
+ from ironic.drivers import base
+ from ironic.drivers.modules import fake
++from oslo_utils import importutils
+ 
++from ironic_staging_drivers.amt import management as amt_mgmt
++from ironic_staging_drivers.amt import power as amt_power
+ from ironic_staging_drivers.wol import power as wol_power
+ 
+ 
+@@ -26,3 +30,16 @@ class FakeWakeOnLanFakeDriver(base.BaseDriver):
+         self.boot = fake.FakeBoot()
+         self.power = wol_power.WakeOnLanPower()
+         self.deploy = fake.FakeDeploy()
++
++
++class FakeAMTFakeDriver(base.BaseDriver):
++    """Fake AMT driver."""
++
++    def __init__(self):
++        if not importutils.try_import('pywsman'):
++            raise ironic_exception.DriverLoadError(
++                driver=self.__class__.__name__,
++                reason=_("Unable to import pywsman library"))
++        self.power = amt_power.AMTPower()
++        self.deploy = fake.FakeDeploy()
++        self.management = amt_mgmt.AMTManagement()
+diff --git a/ironic_staging_drivers/pxe.py b/ironic_staging_drivers/pxe.py
+index 2f5838b..da97390 100644
+--- a/ironic_staging_drivers/pxe.py
++++ b/ironic_staging_drivers/pxe.py
+@@ -13,10 +13,15 @@
+ #    License for the specific language governing permissions and limitations
+ #    under the License.
+ 
++from ironic.common import exception as ironic_exception
+ from ironic.drivers import base
+ from ironic.drivers.modules import iscsi_deploy
+ from ironic.drivers.modules import pxe
++from oslo_utils import importutils
+ 
++from ironic_staging_drivers.amt import management as amt_management
++from ironic_staging_drivers.amt import power as amt_power
++from ironic_staging_drivers.amt import vendor as amt_vendor
+ from ironic_staging_drivers.wol import power as wol_power
+ 
+ 
+@@ -36,3 +41,25 @@ class PXEAndWakeOnLanISCSIDriver(base.BaseDriver):
+         self.power = wol_power.WakeOnLanPower()
+         self.deploy = iscsi_deploy.ISCSIDeploy()
+         self.vendor = iscsi_deploy.VendorPassthru()
++
++
++class PXEAndAMTISCSIDriver(base.BaseDriver):
++    """PXE + AMT + iSCSI driver.
++
++    This driver implements the `core` functionality, combining
++    :class:`ironic_staging_drivers.amt.AMTPower` for power on/off and
++    reboot with
++    :class:`ironic.drivers.modules.iscsi_deploy.ISCSIDeploy` for image
++    deployment. Implementations are in those respective classes; this
++    class is merely the glue between them.
++    """
++    def __init__(self):
++        if not importutils.try_import('pywsman'):
++            raise ironic_exception.DriverLoadError(
++                driver=self.__class__.__name__,
++                reason=_("Unable to import pywsman library"))
++        self.power = amt_power.AMTPower()
++        self.boot = pxe.PXEBoot()
++        self.deploy = iscsi_deploy.ISCSIDeploy()
++        self.management = amt_management.AMTManagement()
++        self.vendor = amt_vendor.AMTPXEVendorPassthru()
+diff --git a/ironic_staging_drivers/tests/unit/amt/__init__.py b/ironic_staging_drivers/tests/unit/amt/__init__.py
+new file mode 100644
+index 0000000..e69de29
+diff --git a/ironic_staging_drivers/tests/unit/amt/test_common.py b/ironic_staging_drivers/tests/unit/amt/test_common.py
+new file mode 100644
+index 0000000..bea8563
+--- /dev/null
++++ b/ironic_staging_drivers/tests/unit/amt/test_common.py
+@@ -0,0 +1,217 @@
++#
++# Licensed under the Apache License, Version 2.0 (the "License"); you may
++# not use this file except in compliance with the License. You may obtain
++# a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++# License for the specific language governing permissions and limitations
++# under the License.
++
++"""
++Test class for AMT Common
++"""
++
++from ironic.common import exception as ironic_exception
++from ironic.common import utils
++from ironic.tests import base
++from ironic.tests.unit.db import base as db_base
++from ironic.tests.unit.db import utils as db_utils
++from ironic.tests.unit.drivers import third_party_driver_mock_specs \
++    as mock_specs
++from ironic.tests.unit.objects import utils as obj_utils
++import mock
++from oslo_concurrency import processutils
++from oslo_config import cfg
++import time
++
++from ironic_staging_drivers.amt import common as amt_common
++from ironic_staging_drivers.amt import resource_uris
++from ironic_staging_drivers.common import exception
++from ironic_staging_drivers.tests.unit.amt import utils as test_utils
++
++INFO_DICT = db_utils.get_test_amt_info()
++CONF = cfg.CONF
++
++
++class AMTCommonMethodsTestCase(db_base.DbTestCase):
++
++    def setUp(self):
++        super(AMTCommonMethodsTestCase, self).setUp()
++        self.node = obj_utils.create_test_node(self.context,
++                                               driver='fake_amt_fake',
++                                               driver_info=INFO_DICT)
++
++    def test_parse_driver_info(self):
++        info = amt_common.parse_driver_info(self.node)
++
++        self.assertIsNotNone(info.get('address'))
++        self.assertIsNotNone(info.get('username'))
++        self.assertIsNotNone(info.get('password'))
++        self.assertIsNotNone(info.get('protocol'))
++        self.assertIsNotNone(info.get('uuid'))
++
++    def test_parse_driver_info_missing_address(self):
++        del self.node.driver_info['amt_address']
++
++        self.assertRaises(ironic_exception.MissingParameterValue,
++                          amt_common.parse_driver_info, self.node)
++
++    def test_parse_driver_info_missing_username(self):
++        del self.node.driver_info['amt_username']
++
++        self.assertRaises(ironic_exception.MissingParameterValue,
++                          amt_common.parse_driver_info, self.node)
++
++    def test_parse_driver_info_missing_password(self):
++        del self.node.driver_info['amt_password']
++        self.assertRaises(ironic_exception.MissingParameterValue,
++                          amt_common.parse_driver_info, self.node)
++
++    def test_parse_driver_info_missing_protocol(self):
++        del self.node.driver_info['amt_protocol']
++        info = amt_common.parse_driver_info(self.node)
++        self.assertEqual('http', info.get('protocol'))
++
++    def test_parse_driver_info_wrong_protocol(self):
++        self.node.driver_info['amt_protocol'] = 'fake-protocol'
++        self.assertRaises(ironic_exception.InvalidParameterValue,
++                          amt_common.parse_driver_info, self.node)
++
++    @mock.patch.object(amt_common, 'Client', spec_set=True, autospec=True)
++    def test_get_wsman_client(self, mock_client):
++        info = amt_common.parse_driver_info(self.node)
++        amt_common.get_wsman_client(self.node)
++        options = {'address': info['address'],
++                   'protocol': info['protocol'],
++                   'username': info['username'],
++                   'password': info['password']}
++
++        mock_client.assert_called_once_with(**options)
++
++    def test_xml_find(self):
++        namespace = 'http://fake'
++        value = 'fake_value'
++        test_xml = test_utils.build_soap_xml([{'test_element': value}],
++                                             namespace)
++        mock_doc = test_utils.mock_wsman_root(test_xml)
++
++        result = amt_common.xml_find(mock_doc, namespace, 'test_element')
++        self.assertEqual(value, result.text)
++
++    def test_xml_find_fail(self):
++        mock_doc = None
++        self.assertRaises(exception.AMTConnectFailure,
++                          amt_common.xml_find,
++                          mock_doc, 'namespace', 'test_element')
++
++
++@mock.patch.object(amt_common, 'pywsman', spec_set=mock_specs.PYWSMAN_SPEC)
++class AMTCommonClientTestCase(base.TestCase):
++    def setUp(self):
++        super(AMTCommonClientTestCase, self).setUp()
++        self.info = {key[4:]: INFO_DICT[key] for key in INFO_DICT.keys()}
++
++    def test_wsman_get(self, mock_client_pywsman):
++        namespace = resource_uris.CIM_AssociatedPowerManagementService
++        result_xml = test_utils.build_soap_xml([{'PowerState':
++                                                 '2'}],
++                                               namespace)
++        mock_doc = test_utils.mock_wsman_root(result_xml)
++        mock_pywsman = mock_client_pywsman.Client.return_value
++        mock_pywsman.get.return_value = mock_doc
++        client = amt_common.Client(**self.info)
++
++        client.wsman_get(namespace)
++        mock_pywsman.get.assert_called_once_with(mock.ANY, namespace)
++
++    def test_wsman_get_fail(self, mock_client_pywsman):
++        namespace = amt_common._SOAP_ENVELOPE
++        result_xml = test_utils.build_soap_xml([{'Fault': 'fault'}],
++                                               namespace)
++        mock_doc = test_utils.mock_wsman_root(result_xml)
++        mock_pywsman = mock_client_pywsman.Client.return_value
++        mock_pywsman.get.return_value = mock_doc
++        client = amt_common.Client(**self.info)
++
++        self.assertRaises(exception.AMTFailure, client.wsman_get, namespace)
++        mock_pywsman.get.assert_called_once_with(mock.ANY, namespace)
++
++    def test_wsman_invoke(self, mock_client_pywsman):
++        namespace = resource_uris.CIM_BootSourceSetting
++        result_xml = test_utils.build_soap_xml([{'ReturnValue':
++                                                 '0'}],
++                                               namespace)
++        mock_doc = test_utils.mock_wsman_root(result_xml)
++        mock_pywsman = mock_client_pywsman.Client.return_value
++        mock_pywsman.invoke.return_value = mock_doc
++        method = 'ChangeBootOrder'
++        options = mock.Mock(spec_set=[])
++        client = amt_common.Client(**self.info)
++        doc = None
++        client.wsman_invoke(options, namespace, method, doc)
++        mock_pywsman.invoke.assert_called_once_with(options, namespace, method)
++        doc = 'fake-input'
++        client.wsman_invoke(options, namespace, method, doc)
++        mock_pywsman.invoke.assert_called_with(options, namespace, method, doc)
++
++    def test_wsman_invoke_fail(self, mock_client_pywsman):
++        namespace = resource_uris.CIM_BootSourceSetting
++        result_xml = test_utils.build_soap_xml([{'ReturnValue':
++                                                 '2'}],
++                                               namespace)
++        mock_doc = test_utils.mock_wsman_root(result_xml)
++        mock_pywsman = mock_client_pywsman.Client.return_value
++        mock_pywsman.invoke.return_value = mock_doc
++        method = 'fake-method'
++        options = mock.Mock(spec_set=[])
++
++        client = amt_common.Client(**self.info)
++
++        self.assertRaises(exception.AMTFailure,
++                          client.wsman_invoke,
++                          options, namespace, method)
++        mock_pywsman.invoke.assert_called_once_with(options, namespace, method)
++
++
++class AwakeAMTInterfaceTestCase(db_base.DbTestCase):
++    def setUp(self):
++        super(AwakeAMTInterfaceTestCase, self).setUp()
++        amt_common.AMT_AWAKE_CACHE = {}
++        self.info = INFO_DICT
++        self.node = obj_utils.create_test_node(self.context,
++                                               driver='fake_amt',
++                                               driver_info=self.info)
++
++    @mock.patch.object(utils, 'execute', spec_set=True, autospec=True)
++    def test_awake_amt_interface(self, mock_ex):
++        amt_common.awake_amt_interface(self.node)
++        expected_args = ['ping', '-i', 0.2, '-c', 5, '1.2.3.4']
++        mock_ex.assert_called_once_with(*expected_args)
++
++    @mock.patch.object(utils, 'execute', spec_set=True, autospec=True)
++    def test_awake_amt_interface_fail(self, mock_ex):
++        mock_ex.side_effect = processutils.ProcessExecutionError('x')
++        self.assertRaises(exception.AMTConnectFailure,
++                          amt_common.awake_amt_interface,
++                          self.node)
++
++    @mock.patch.object(utils, 'execute', spec_set=True, autospec=True)
++    def test_awake_amt_interface_in_cache_time(self, mock_ex):
++        amt_common.AMT_AWAKE_CACHE[self.node.uuid] = time.time()
++        amt_common.awake_amt_interface(self.node)
++        self.assertFalse(mock_ex.called)
++
++    @mock.patch.object(utils, 'execute', spec_set=True, autospec=True)
++    def test_awake_amt_interface_disable(self, mock_ex):
++        CONF.set_override('awake_interval', 0, 'amt')
++        amt_common.awake_amt_interface(self.node)
++        self.assertFalse(mock_ex.called)
++
++    def test_out_range_protocol(self):
++        self.assertRaises(ValueError, cfg.CONF.set_override,
++                          'protocol', 'fake', 'amt',
++                          enforce_type=True)
+diff --git a/ironic_staging_drivers/tests/unit/amt/test_management.py b/ironic_staging_drivers/tests/unit/amt/test_management.py
+new file mode 100644
+index 0000000..072325c
+--- /dev/null
++++ b/ironic_staging_drivers/tests/unit/amt/test_management.py
+@@ -0,0 +1,246 @@
++#
++# Licensed under the Apache License, Version 2.0 (the "License"); you may
++# not use this file except in compliance with the License. You may obtain
++# a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++# License for the specific language governing permissions and limitations
++# under the License.
++
++"""
++Test class for AMT ManagementInterface
++"""
++
++from ironic.common import boot_devices
++from ironic.common import exception as ironic_exception
++from ironic.conductor import task_manager
++from ironic.tests.unit.conductor import mgr_utils
++from ironic.tests.unit.db import base as db_base
++from ironic.tests.unit.db import utils as db_utils
++from ironic.tests.unit.drivers import third_party_driver_mock_specs \
++    as mock_specs
++from ironic.tests.unit.objects import utils as obj_utils
++import mock
++from oslo_config import cfg
++
++from ironic_staging_drivers.amt import common as amt_common
++from ironic_staging_drivers.amt import management as amt_mgmt
++from ironic_staging_drivers.amt import resource_uris
++from ironic_staging_drivers.common import exception
++from ironic_staging_drivers.tests.unit.amt import utils as test_utils
++
++INFO_DICT = db_utils.get_test_amt_info()
++CONF = cfg.CONF
++
++
++@mock.patch.object(amt_common, 'pywsman', spec_set=mock_specs.PYWSMAN_SPEC)
++class AMTManagementInteralMethodsTestCase(db_base.DbTestCase):
++
++    def setUp(self):
++        super(AMTManagementInteralMethodsTestCase, self).setUp()
++        mgr_utils.mock_the_extension_manager(driver='fake_amt_fake')
++        self.node = obj_utils.create_test_node(self.context,
++                                               driver='fake_amt_fake',
++                                               driver_info=INFO_DICT)
++
++    @mock.patch.object(amt_common, 'awake_amt_interface', spec_set=True,
++                       autospec=True)
++    def test__set_boot_device_order(self, mock_aw, mock_client_pywsman):
++        namespace = resource_uris.CIM_BootConfigSetting
++        device = boot_devices.PXE
++        result_xml = test_utils.build_soap_xml([{'ReturnValue': '0'}],
++                                               namespace)
++        mock_xml = test_utils.mock_wsman_root(result_xml)
++        mock_pywsman = mock_client_pywsman.Client.return_value
++        mock_pywsman.invoke.return_value = mock_xml
++
++        amt_mgmt._set_boot_device_order(self.node, device)
++
++        mock_pywsman.invoke.assert_called_once_with(
++            mock.ANY, namespace, 'ChangeBootOrder', mock.ANY)
++        self.assertTrue(mock_aw.called)
++
++    @mock.patch.object(amt_common, 'awake_amt_interface', spec_set=True,
++                       autospec=True)
++    def test__set_boot_device_order_fail(self, mock_aw, mock_client_pywsman):
++        namespace = resource_uris.CIM_BootConfigSetting
++        device = boot_devices.PXE
++        result_xml = test_utils.build_soap_xml([{'ReturnValue': '2'}],
++                                               namespace)
++        mock_xml = test_utils.mock_wsman_root(result_xml)
++        mock_pywsman = mock_client_pywsman.Client.return_value
++        mock_pywsman.invoke.return_value = mock_xml
++
++        self.assertRaises(exception.AMTFailure,
++                          amt_mgmt._set_boot_device_order, self.node, device)
++        mock_pywsman.invoke.assert_called_once_with(
++            mock.ANY, namespace, 'ChangeBootOrder', mock.ANY)
++
++        mock_pywsman = mock_client_pywsman.Client.return_value
++        mock_pywsman.invoke.return_value = None
++
++        self.assertRaises(exception.AMTConnectFailure,
++                          amt_mgmt._set_boot_device_order, self.node, device)
++        self.assertTrue(mock_aw.called)
++
++    @mock.patch.object(amt_common, 'awake_amt_interface', spec_set=True,
++                       autospec=True)
++    def test__enable_boot_config(self, mock_aw, mock_client_pywsman):
++        namespace = resource_uris.CIM_BootService
++        result_xml = test_utils.build_soap_xml([{'ReturnValue': '0'}],
++                                               namespace)
++        mock_xml = test_utils.mock_wsman_root(result_xml)
++        mock_pywsman = mock_client_pywsman.Client.return_value
++        mock_pywsman.invoke.return_value = mock_xml
++
++        amt_mgmt._enable_boot_config(self.node)
++
++        mock_pywsman.invoke.assert_called_once_with(
++            mock.ANY, namespace, 'SetBootConfigRole', mock.ANY)
++        self.assertTrue(mock_aw.called)
++
++    @mock.patch.object(amt_common, 'awake_amt_interface', spec_set=True,
++                       autospec=True)
++    def test__enable_boot_config_fail(self, mock_aw, mock_client_pywsman):
++        namespace = resource_uris.CIM_BootService
++        result_xml = test_utils.build_soap_xml([{'ReturnValue': '2'}],
++                                               namespace)
++        mock_xml = test_utils.mock_wsman_root(result_xml)
++        mock_pywsman = mock_client_pywsman.Client.return_value
++        mock_pywsman.invoke.return_value = mock_xml
++
++        self.assertRaises(exception.AMTFailure,
++                          amt_mgmt._enable_boot_config, self.node)
++        mock_pywsman.invoke.assert_called_once_with(
++            mock.ANY, namespace, 'SetBootConfigRole', mock.ANY)
++
++        mock_pywsman = mock_client_pywsman.Client.return_value
++        mock_pywsman.invoke.return_value = None
++
++        self.assertRaises(exception.AMTConnectFailure,
++                          amt_mgmt._enable_boot_config, self.node)
++        self.assertTrue(mock_aw.called)
++
++
++class AMTManagementTestCase(db_base.DbTestCase):
++
++    def setUp(self):
++        super(AMTManagementTestCase, self).setUp()
++        mgr_utils.mock_the_extension_manager(driver='fake_amt_fake')
++        self.info = INFO_DICT
++        self.node = obj_utils.create_test_node(self.context,
++                                               driver='fake_amt_fake',
++                                               driver_info=self.info)
++
++    def test_get_properties(self):
++        expected = amt_common.COMMON_PROPERTIES
++        with task_manager.acquire(self.context, self.node.uuid,
++                                  shared=True) as task:
++            self.assertEqual(expected, task.driver.get_properties())
++
++    @mock.patch.object(amt_common, 'parse_driver_info', spec_set=True,
++                       autospec=True)
++    def test_validate(self, mock_drvinfo):
++        with task_manager.acquire(self.context, self.node.uuid,
++                                  shared=True) as task:
++            task.driver.management.validate(task)
++            mock_drvinfo.assert_called_once_with(task.node)
++
++    @mock.patch.object(amt_common, 'parse_driver_info', spec_set=True,
++                       autospec=True)
++    def test_validate_fail(self, mock_drvinfo):
++        with task_manager.acquire(self.context, self.node.uuid,
++                                  shared=True) as task:
++            mock_drvinfo.side_effect = iter(
++                [ironic_exception.InvalidParameterValue('x')])
++            self.assertRaises(ironic_exception.InvalidParameterValue,
++                              task.driver.management.validate,
++                              task)
++
++    def test_get_supported_boot_devices(self):
++        expected = [boot_devices.PXE, boot_devices.DISK, boot_devices.CDROM]
++        with task_manager.acquire(self.context, self.node.uuid,
++                                  shared=True) as task:
++            self.assertEqual(
++                sorted(expected),
++                sorted(task.driver.management.
++                       get_supported_boot_devices(task)))
++
++    def test_set_boot_device_one_time(self):
++        with task_manager.acquire(self.context, self.node.uuid,
++                                  shared=False) as task:
++            task.driver.management.set_boot_device(task, 'pxe')
++            self.assertEqual('pxe',
++                             task.node.driver_internal_info["amt_boot_device"])
++            self.assertFalse(
++                task.node.driver_internal_info["amt_boot_persistent"])
++
++    def test_set_boot_device_persistent(self):
++        with task_manager.acquire(self.context, self.node.uuid,
++                                  shared=False) as task:
++            task.driver.management.set_boot_device(task, 'pxe',
++                                                   persistent=True)
++            self.assertEqual('pxe',
++                             task.node.driver_internal_info["amt_boot_device"])
++            self.assertTrue(
++                task.node.driver_internal_info["amt_boot_persistent"])
++
++    def test_set_boot_device_fail(self):
++        with task_manager.acquire(self.context, self.node.uuid,
++                                  shared=False) as task:
++            self.assertRaises(ironic_exception.InvalidParameterValue,
++                              task.driver.management.set_boot_device,
++                              task, 'fake-device')
++
++    @mock.patch.object(amt_mgmt, '_enable_boot_config', spec_set=True,
++                       autospec=True)
++    @mock.patch.object(amt_mgmt, '_set_boot_device_order', spec_set=True,
++                       autospec=True)
++    def test_ensure_next_boot_device_one_time(self, mock_sbdo, mock_ebc):
++        with task_manager.acquire(self.context, self.node.uuid,
++                                  shared=True) as task:
++            device = boot_devices.PXE
++            task.node.driver_internal_info['amt_boot_device'] = 'pxe'
++            task.driver.management.ensure_next_boot_device(task.node, device)
++            self.assertEqual('disk',
++                             task.node.driver_internal_info["amt_boot_device"])
++            self.assertTrue(
++                task.node.driver_internal_info["amt_boot_persistent"])
++            mock_sbdo.assert_called_once_with(task.node, device)
++            mock_ebc.assert_called_once_with(task.node)
++
++    @mock.patch.object(amt_mgmt, '_enable_boot_config', spec_set=True,
++                       autospec=True)
++    @mock.patch.object(amt_mgmt, '_set_boot_device_order', spec_set=True,
++                       autospec=True)
++    def test_ensure_next_boot_device_persistent(self, mock_sbdo, mock_ebc):
++        with task_manager.acquire(self.context, self.node.uuid,
++                                  shared=True) as task:
++            device = boot_devices.PXE
++            task.node.driver_internal_info['amt_boot_device'] = 'pxe'
++            task.node.driver_internal_info['amt_boot_persistent'] = True
++            task.driver.management.ensure_next_boot_device(task.node, device)
++            self.assertEqual('pxe',
++                             task.node.driver_internal_info["amt_boot_device"])
++            self.assertTrue(
++                task.node.driver_internal_info["amt_boot_persistent"])
++            mock_sbdo.assert_called_once_with(task.node, device)
++            mock_ebc.assert_called_once_with(task.node)
++
++    def test_get_boot_device(self):
++        expected = {'boot_device': boot_devices.DISK, 'persistent': True}
++        with task_manager.acquire(self.context, self.node.uuid,
++                                  shared=True) as task:
++            self.assertEqual(expected,
++                             task.driver.management.get_boot_device(task))
++
++    def test_get_sensor_data(self):
++        with task_manager.acquire(self.context, self.node.uuid,
++                                  shared=True) as task:
++            self.assertRaises(NotImplementedError,
++                              task.driver.management.get_sensors_data,
++                              task)
+diff --git a/ironic_staging_drivers/tests/unit/amt/test_power.py b/ironic_staging_drivers/tests/unit/amt/test_power.py
+new file mode 100644
+index 0000000..ccacd55
+--- /dev/null
++++ b/ironic_staging_drivers/tests/unit/amt/test_power.py
+@@ -0,0 +1,294 @@
++#
++# Licensed under the Apache License, Version 2.0 (the "License"); you may
++# not use this file except in compliance with the License. You may obtain
++# a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++# License for the specific language governing permissions and limitations
++# under the License.
++
++"""
++Test class for AMT ManagementInterface
++"""
++
++from ironic.common import boot_devices
++from ironic.common import exception
++from ironic.common import states
++from ironic.conductor import task_manager
++from ironic.tests.unit.conductor import mgr_utils
++from ironic.tests.unit.db import base as db_base
++from ironic.tests.unit.db import utils as db_utils
++from ironic.tests.unit.objects import utils as obj_utils
++import mock
++from oslo_config import cfg
++
++from ironic_staging_drivers.amt import common as amt_common
++from ironic_staging_drivers.amt import management as amt_mgmt
++from ironic_staging_drivers.amt import power as amt_power
++from ironic_staging_drivers.amt import resource_uris
++from ironic_staging_drivers.tests.unit.amt import utils as test_utils
++
++INFO_DICT = db_utils.get_test_amt_info()
++CONF = cfg.CONF
++
++
++class AMTPowerInteralMethodsTestCase(db_base.DbTestCase):
++
++    def setUp(self):
++        super(AMTPowerInteralMethodsTestCase, self).setUp()
++        mgr_utils.mock_the_extension_manager(driver='fake_amt_fake')
++        self.info = INFO_DICT
++        self.node = obj_utils.create_test_node(self.context,
++                                               driver='fake_amt_fake',
++                                               driver_info=self.info)
++        CONF.set_override('max_attempts', 2, 'amt')
++        CONF.set_override('action_wait', 0, 'amt')
++
++    @mock.patch.object(amt_common, 'awake_amt_interface', spec_set=True,
++                       autospec=True)
++    @mock.patch.object(amt_common, 'get_wsman_client', spec_set=True,
++                       autospec=True)
++    def test__set_power_state(self, mock_client_pywsman, mock_aw):
++        namespace = resource_uris.CIM_PowerManagementService
++        mock_client = mock_client_pywsman.return_value
++        amt_power._set_power_state(self.node, states.POWER_ON)
++        mock_client.wsman_invoke.assert_called_once_with(
++            mock.ANY, namespace, 'RequestPowerStateChange', mock.ANY)
++        self.assertTrue(mock_aw.called)
++
++    @mock.patch.object(amt_common, 'awake_amt_interface', spec_set=True,
++                       autospec=True)
++    @mock.patch.object(amt_common, 'get_wsman_client', spec_set=True,
++                       autospec=True)
++    def test__set_power_state_fail(self, mock_client_pywsman, mock_aw):
++        mock_client = mock_client_pywsman.return_value
++        mock_client.wsman_invoke.side_effect = exception.AMTFailure('x')
++        self.assertRaises(exception.AMTFailure,
++                          amt_power._set_power_state,
++                          self.node, states.POWER_ON)
++        self.assertTrue(mock_aw.called)
++
++    @mock.patch.object(amt_common, 'awake_amt_interface', spec_set=True,
++                       autospec=True)
++    @mock.patch.object(amt_common, 'get_wsman_client', spec_set=True,
++                       autospec=True)
++    def test__power_status(self, mock_gwc, mock_aw):
++        namespace = resource_uris.CIM_AssociatedPowerManagementService
++        result_xml = test_utils.build_soap_xml([{'PowerState':
++                                                 '2'}],
++                                               namespace)
++        mock_doc = test_utils.mock_wsman_root(result_xml)
++        mock_client = mock_gwc.return_value
++        mock_client.wsman_get.return_value = mock_doc
++        self.assertEqual(
++            states.POWER_ON, amt_power._power_status(self.node))
++
++        result_xml = test_utils.build_soap_xml([{'PowerState':
++                                                 '8'}],
++                                               namespace)
++        mock_doc = test_utils.mock_wsman_root(result_xml)
++        mock_client = mock_gwc.return_value
++        mock_client.wsman_get.return_value = mock_doc
++        self.assertEqual(
++            states.POWER_OFF, amt_power._power_status(self.node))
++
++        result_xml = test_utils.build_soap_xml([{'PowerState':
++                                                 '4'}],
++                                               namespace)
++        mock_doc = test_utils.mock_wsman_root(result_xml)
++        mock_client = mock_gwc.return_value
++        mock_client.wsman_get.return_value = mock_doc
++        self.assertEqual(
++            states.ERROR, amt_power._power_status(self.node))
++        self.assertTrue(mock_aw.called)
++
++    @mock.patch.object(amt_common, 'awake_amt_interface', spec_set=True,
++                       autospec=True)
++    @mock.patch.object(amt_common, 'get_wsman_client', spec_set=True,
++                       autospec=True)
++    def test__power_status_fail(self, mock_gwc, mock_aw):
++        mock_client = mock_gwc.return_value
++        mock_client.wsman_get.side_effect = exception.AMTFailure('x')
++        self.assertRaises(exception.AMTFailure,
++                          amt_power._power_status,
++                          self.node)
++        self.assertTrue(mock_aw.called)
++
++    @mock.patch.object(amt_mgmt.AMTManagement, 'ensure_next_boot_device',
++                       spec_set=True, autospec=True)
++    @mock.patch.object(amt_power, '_power_status', spec_set=True,
++                       autospec=True)
++    @mock.patch.object(amt_power, '_set_power_state', spec_set=True,
++                       autospec=True)
++    def test__set_and_wait_power_on_with_boot_device(self, mock_sps,
++                                                     mock_ps, mock_enbd):
++        target_state = states.POWER_ON
++        boot_device = boot_devices.PXE
++        mock_ps.side_effect = iter([states.POWER_OFF, states.POWER_ON])
++        mock_enbd.return_value = None
++        with task_manager.acquire(self.context, self.node.uuid,
++                                  shared=True) as task:
++            task.node.driver_internal_info['amt_boot_device'] = boot_device
++            result = amt_power._set_and_wait(task, target_state)
++            self.assertEqual(states.POWER_ON, result)
++            mock_enbd.assert_called_with(task.driver.management, task.node,
++                                         boot_devices.PXE)
++            mock_sps.assert_called_once_with(task.node, states.POWER_ON)
++            mock_ps.assert_called_with(task.node)
++
++    @mock.patch.object(amt_power, '_power_status', spec_set=True,
++                       autospec=True)
++    @mock.patch.object(amt_power, '_set_power_state', spec_set=True,
++                       autospec=True)
++    def test__set_and_wait_power_on_without_boot_device(self, mock_sps,
++                                                        mock_ps):
++        target_state = states.POWER_ON
++        mock_ps.side_effect = iter([states.POWER_OFF, states.POWER_ON])
++        with task_manager.acquire(self.context, self.node.uuid,
++                                  shared=True) as task:
++            self.assertEqual(states.POWER_ON,
++                             amt_power._set_and_wait(task, target_state))
++            mock_sps.assert_called_once_with(task.node, states.POWER_ON)
++            mock_ps.assert_called_with(task.node)
++
++        boot_device = boot_devices.DISK
++        self.node.driver_internal_info['amt_boot_device'] = boot_device
++        mock_ps.side_effect = iter([states.POWER_OFF, states.POWER_ON])
++        with task_manager.acquire(self.context, self.node.uuid,
++                                  shared=True) as task:
++            self.assertEqual(states.POWER_ON,
++                             amt_power._set_and_wait(task, target_state))
++            mock_sps.assert_called_with(task.node, states.POWER_ON)
++            mock_ps.assert_called_with(task.node)
++
++    def test__set_and_wait_wrong_target_state(self):
++        target_state = 'fake-state'
++        with task_manager.acquire(self.context, self.node.uuid,
++                                  shared=True) as task:
++            self.assertRaises(exception.InvalidParameterValue,
++                              amt_power._set_and_wait, task, target_state)
++
++    @mock.patch.object(amt_power, '_power_status', spec_set=True,
++                       autospec=True)
++    @mock.patch.object(amt_power, '_set_power_state', spec_set=True,
++                       autospec=True)
++    def test__set_and_wait_exceed_iterations(self, mock_sps,
++                                             mock_ps):
++        target_state = states.POWER_ON
++        mock_ps.side_effect = iter([states.POWER_OFF, states.POWER_OFF,
++                                    states.POWER_OFF])
++        mock_sps.return_value = exception.AMTFailure('x')
++        with task_manager.acquire(self.context, self.node.uuid,
++                                  shared=True) as task:
++            self.assertRaises(exception.PowerStateFailure,
++                              amt_power._set_and_wait, task, target_state)
++            mock_sps.assert_called_with(task.node, states.POWER_ON)
++            mock_ps.assert_called_with(task.node)
++            self.assertEqual(3, mock_ps.call_count)
++
++    @mock.patch.object(amt_power, '_power_status', spec_set=True,
++                       autospec=True)
++    def test__set_and_wait_already_target_state(self, mock_ps):
++        target_state = states.POWER_ON
++        mock_ps.side_effect = iter([states.POWER_ON])
++        with task_manager.acquire(self.context, self.node.uuid,
++                                  shared=True) as task:
++            self.assertEqual(states.POWER_ON,
++                             amt_power._set_and_wait(task, target_state))
++            mock_ps.assert_called_with(task.node)
++
++    @mock.patch.object(amt_power, '_power_status', spec_set=True,
++                       autospec=True)
++    @mock.patch.object(amt_power, '_set_power_state', spec_set=True,
++                       autospec=True)
++    def test__set_and_wait_power_off(self, mock_sps, mock_ps):
++        target_state = states.POWER_OFF
++        mock_ps.side_effect = iter([states.POWER_ON, states.POWER_OFF])
++        with task_manager.acquire(self.context, self.node.uuid,
++                                  shared=True) as task:
++            self.assertEqual(states.POWER_OFF,
++                             amt_power._set_and_wait(task, target_state))
++            mock_sps.assert_called_once_with(task.node, states.POWER_OFF)
++            mock_ps.assert_called_with(task.node)
++
++
++class AMTPowerTestCase(db_base.DbTestCase):
++
++    def setUp(self):
++        super(AMTPowerTestCase, self).setUp()
++        mgr_utils.mock_the_extension_manager(driver='fake_amt_fake')
++        self.info = INFO_DICT
++        self.node = obj_utils.create_test_node(self.context,
++                                               driver='fake_amt_fake',
++                                               driver_info=self.info)
++
++    def test_get_properties(self):
++        expected = amt_common.COMMON_PROPERTIES
++        with task_manager.acquire(self.context, self.node.uuid,
++                                  shared=True) as task:
++            self.assertEqual(expected, task.driver.get_properties())
++
++    @mock.patch.object(amt_common, 'parse_driver_info', spec_set=True,
++                       autospec=True)
++    def test_validate(self, mock_drvinfo):
++        with task_manager.acquire(self.context, self.node.uuid,
++                                  shared=True) as task:
++            task.driver.power.validate(task)
++            mock_drvinfo.assert_called_once_with(task.node)
++
++    @mock.patch.object(amt_common, 'parse_driver_info', spec_set=True,
++                       autospec=True)
++    def test_validate_fail(self, mock_drvinfo):
++        with task_manager.acquire(self.context, self.node.uuid,
++                                  shared=True) as task:
++            mock_drvinfo.side_effect = iter(
++                [exception.InvalidParameterValue('x')])
++            self.assertRaises(exception.InvalidParameterValue,
++                              task.driver.power.validate,
++                              task)
++
++    @mock.patch.object(amt_power, '_power_status', spec_set=True,
++                       autospec=True)
++    def test_get_power_state(self, mock_ps):
++        with task_manager.acquire(self.context, self.node.uuid,
++                                  shared=True) as task:
++            mock_ps.return_value = states.POWER_ON
++            self.assertEqual(states.POWER_ON,
++                             task.driver.power.get_power_state(task))
++            mock_ps.assert_called_once_with(task.node)
++
++    @mock.patch.object(amt_power, '_set_and_wait', spec_set=True,
++                       autospec=True)
++    def test_set_power_state(self, mock_saw):
++        with task_manager.acquire(self.context, self.node.uuid,
++                                  shared=False) as task:
++            pstate = states.POWER_ON
++            mock_saw.return_value = states.POWER_ON
++            task.driver.power.set_power_state(task, pstate)
++            mock_saw.assert_called_once_with(task, pstate)
++
++    @mock.patch.object(amt_power, '_set_and_wait', spec_set=True,
++                       autospec=True)
++    def test_set_power_state_fail(self, mock_saw):
++        with task_manager.acquire(self.context, self.node.uuid,
++                                  shared=False) as task:
++            pstate = states.POWER_ON
++            mock_saw.side_effect = iter([exception.PowerStateFailure('x')])
++            self.assertRaises(exception.PowerStateFailure,
++                              task.driver.power.set_power_state,
++                              task, pstate)
++            mock_saw.assert_called_once_with(task, pstate)
++
++    @mock.patch.object(amt_power, '_set_and_wait', spec_set=True,
++                       autospec=True)
++    def test_reboot(self, mock_saw):
++        with task_manager.acquire(self.context, self.node.uuid,
++                                  shared=False) as task:
++            task.driver.power.reboot(task)
++            calls = [mock.call(task, states.POWER_OFF),
++                     mock.call(task, states.POWER_ON)]
++            mock_saw.assert_has_calls(calls)
+diff --git a/ironic_staging_drivers/tests/unit/amt/test_vendor.py b/ironic_staging_drivers/tests/unit/amt/test_vendor.py
+new file mode 100644
+index 0000000..ff9752f
+--- /dev/null
++++ b/ironic_staging_drivers/tests/unit/amt/test_vendor.py
+@@ -0,0 +1,132 @@
++#
++#    Licensed under the Apache License, Version 2.0 (the "License"); you may
++#    not use this file except in compliance with the License. You may obtain
++#    a copy of the License at
++#
++#         http://www.apache.org/licenses/LICENSE-2.0
++#
++#    Unless required by applicable law or agreed to in writing, software
++#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++#    License for the specific language governing permissions and limitations
++#    under the License.
++
++"""Test class for AMT Vendor methods."""
++
++from ironic.common import boot_devices
++from ironic.common import states
++from ironic.conductor import task_manager
++from ironic.drivers.modules import iscsi_deploy
++from ironic.tests.unit.conductor import mgr_utils
++from ironic.tests.unit.db import base as db_base
++from ironic.tests.unit.db import utils as db_utils
++from ironic.tests.unit.objects import utils as obj_utils
++import mock
++
++from ironic_staging_drivers.amt import management as amt_mgmt
++
++INFO_DICT = db_utils.get_test_amt_info()
++
++
++class AMTPXEVendorPassthruTestCase(db_base.DbTestCase):
++
++    def setUp(self):
++        super(AMTPXEVendorPassthruTestCase, self).setUp()
++        mgr_utils.mock_the_extension_manager(driver="pxe_amt_iscsi")
++        self.node = obj_utils.create_test_node(
++            self.context, driver='pxe_amt_iscsi', driver_info=INFO_DICT)
++
++    def test_vendor_routes(self):
++        expected = ['heartbeat', 'pass_deploy_info',
++                    'pass_bootloader_install_info']
++        with task_manager.acquire(self.context, self.node.uuid,
++                                  shared=True) as task:
++            vendor_routes = task.driver.vendor.vendor_routes
++            self.assertIsInstance(vendor_routes, dict)
++            self.assertEqual(sorted(expected), sorted(list(vendor_routes)))
++
++    def test_driver_routes(self):
++        expected = ['lookup']
++        with task_manager.acquire(self.context, self.node.uuid,
++                                  shared=True) as task:
++            driver_routes = task.driver.vendor.driver_routes
++            self.assertIsInstance(driver_routes, dict)
++            self.assertEqual(sorted(expected), sorted(list(driver_routes)))
++
++    @mock.patch.object(amt_mgmt.AMTManagement, 'ensure_next_boot_device',
++                       spec_set=True, autospec=True)
++    @mock.patch.object(iscsi_deploy.VendorPassthru, 'pass_deploy_info',
++                       spec_set=True, autospec=True)
++    def test_vendorpassthru_pass_deploy_info_netboot(self,
++                                                     mock_pxe_vendorpassthru,
++                                                     mock_ensure):
++        kwargs = {'address': '123456'}
++        with task_manager.acquire(self.context, self.node.uuid,
++                                  shared=False) as task:
++            task.node.provision_state = states.DEPLOYWAIT
++            task.node.target_provision_state = states.ACTIVE
++            task.node.instance_info['capabilities'] = {
++                "boot_option": "netboot"
++            }
++            task.driver.vendor.pass_deploy_info(task, **kwargs)
++            mock_ensure.assert_called_with(
++                task.driver.management, task.node, boot_devices.PXE)
++            mock_pxe_vendorpassthru.assert_called_once_with(
++                task.driver.vendor, task, **kwargs)
++
++    @mock.patch.object(amt_mgmt.AMTManagement, 'ensure_next_boot_device',
++                       spec_set=True, autospec=True)
++    @mock.patch.object(iscsi_deploy.VendorPassthru, 'pass_deploy_info',
++                       spec_set=True, autospec=True)
++    def test_vendorpassthru_pass_deploy_info_localboot(self,
++                                                       mock_pxe_vendorpassthru,
++                                                       mock_ensure):
++        kwargs = {'address': '123456'}
++        with task_manager.acquire(self.context, self.node.uuid,
++                                  shared=False) as task:
++            task.node.provision_state = states.DEPLOYWAIT
++            task.node.target_provision_state = states.ACTIVE
++            task.node.instance_info['capabilities'] = {"boot_option": "local"}
++            task.driver.vendor.pass_deploy_info(task, **kwargs)
++            self.assertFalse(mock_ensure.called)
++            mock_pxe_vendorpassthru.assert_called_once_with(
++                task.driver.vendor, task, **kwargs)
++
++    @mock.patch.object(amt_mgmt.AMTManagement, 'ensure_next_boot_device',
++                       spec_set=True, autospec=True)
++    @mock.patch.object(iscsi_deploy.VendorPassthru, 'continue_deploy',
++                       spec_set=True, autospec=True)
++    def test_vendorpassthru_continue_deploy_netboot(self,
++                                                    mock_pxe_vendorpassthru,
++                                                    mock_ensure):
++        kwargs = {'address': '123456'}
++        with task_manager.acquire(self.context, self.node.uuid,
++                                  shared=False) as task:
++            task.node.provision_state = states.DEPLOYWAIT
++            task.node.target_provision_state = states.ACTIVE
++            task.node.instance_info['capabilities'] = {
++                "boot_option": "netboot"
++            }
++            task.driver.vendor.continue_deploy(task, **kwargs)
++            mock_ensure.assert_called_with(
++                task.driver.management, task.node, boot_devices.PXE)
++            mock_pxe_vendorpassthru.assert_called_once_with(
++                task.driver.vendor, task, **kwargs)
++
++    @mock.patch.object(amt_mgmt.AMTManagement, 'ensure_next_boot_device',
++                       spec_set=True, autospec=True)
++    @mock.patch.object(iscsi_deploy.VendorPassthru, 'continue_deploy',
++                       spec_set=True, autospec=True)
++    def test_vendorpassthru_continue_deploy_localboot(self,
++                                                      mock_pxe_vendorpassthru,
++                                                      mock_ensure):
++        kwargs = {'address': '123456'}
++        with task_manager.acquire(self.context, self.node.uuid,
++                                  shared=False) as task:
++            task.node.provision_state = states.DEPLOYWAIT
++            task.node.target_provision_state = states.ACTIVE
++            task.node.instance_info['capabilities'] = {"boot_option": "local"}
++            task.driver.vendor.continue_deploy(task, **kwargs)
++            self.assertFalse(mock_ensure.called)
++            mock_pxe_vendorpassthru.assert_called_once_with(
++                task.driver.vendor, task, **kwargs)
+diff --git a/ironic_staging_drivers/tests/unit/amt/utils.py b/ironic_staging_drivers/tests/unit/amt/utils.py
+new file mode 100644
+index 0000000..6338f71
+--- /dev/null
++++ b/ironic_staging_drivers/tests/unit/amt/utils.py
+@@ -0,0 +1,72 @@
++# -*- coding: utf-8 -*-
++#
++# Copyright 2014 Red Hat, Inc.
++# All Rights Reserved.
++#
++#    Licensed under the Apache License, Version 2.0 (the "License"); you may
++#    not use this file except in compliance with the License. You may obtain
++#    a copy of the License at
++#
++#         http://www.apache.org/licenses/LICENSE-2.0
++#
++#    Unless required by applicable law or agreed to in writing, software
++#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++#    License for the specific language governing permissions and limitations
++#    under the License.
++
++from xml.etree import ElementTree
++
++import mock
++
++
++def build_soap_xml(items, namespace=None):
++    """Build a SOAP XML.
++
++    :param items: a list of dictionaries where key is the element name
++                  and the value is the element text.
++    :param namespace: the namespace for the elements, None for no
++                      namespace. Defaults to None
++    :returns: a XML string.
++
++    """
++
++    def _create_element(name, value=None):
++        xml_string = name
++        if namespace:
++            xml_string = "{%(namespace)s}%(item)s" % {'namespace': namespace,
++                                                      'item': xml_string}
++
++        element = ElementTree.Element(xml_string)
++        element.text = value
++        return element
++
++    soap_namespace = "http://www.w3.org/2003/05/soap-envelope"
++    envelope_element = ElementTree.Element("{%s}Envelope" % soap_namespace)
++    body_element = ElementTree.Element("{%s}Body" % soap_namespace)
++
++    for item in items:
++        for i in item:
++            insertion_point = _create_element(i)
++            if isinstance(item[i], dict):
++                for j, value in item[i].items():
++                    insertion_point.append(_create_element(j, value))
++            else:
++                insertion_point.text = item[i]
++
++            body_element.append(insertion_point)
++
++    envelope_element.append(body_element)
++    return ElementTree.tostring(envelope_element)
++
++
++def mock_wsman_root(return_value):
++    """Helper function to mock the root() from wsman client."""
++    mock_xml_root = mock.Mock(spec_set=['string'])
++    mock_xml_root.string.return_value = return_value
++
++    mock_xml = mock.Mock(spec_set=['context', 'root'])
++    mock_xml.context.return_value = None
++    mock_xml.root.return_value = mock_xml_root
++
++    return mock_xml
+diff --git a/requirements.txt b/requirements.txt
+index f50b343..00581d5 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -5,3 +5,7 @@
+ pbr>=1.6 # Apache-2.0
+ oslo.i18n>=2.1.0 # Apache-2.0
+ oslo.utils>=3.4.0 # Apache-2.0
++oslo.concurrency>=2.3.0 # Apache-2.0
++oslo.config>=3.4.0 # Apache-2.0
++oslo.log>=1.14.0 # Apache-2.0
++six>=1.9.0 # MIT
+diff --git a/setup.cfg b/setup.cfg
+index 0da921f..a90f885 100644
+--- a/setup.cfg
++++ b/setup.cfg
+@@ -25,9 +25,12 @@ packages =
+ [entry_points]
+ ironic.drivers =
+     fake_wol_fake = ironic_staging_drivers.fake:FakeWakeOnLanFakeDriver
++    fake_amt_fake = ironic_staging_drivers.fake:FakeAMTFakeDriver
+     pxe_wol_iscsi = ironic_staging_drivers.pxe:PXEAndWakeOnLanISCSIDriver
++    pxe_amt_iscsi = ironic_staging_drivers.pxe:PXEAndAMTISCSIDriver
+     pxe_wol_agent = ironic_staging_drivers.agent:PXEAndWakeOnLanAgentDriver
+-
++    pxe_amt_agent = ironic_staging_drivers.agent:PXEAndAMTAgentDriver
++ 
+ [build_sphinx]
+ source-dir = doc/source
+ build-dir = doc/build
+-- 
+1.9.1
+
