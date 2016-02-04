@@ -25,6 +25,34 @@ What the Ironic Staging Drivers is not
   their driver.
 
 
+How to contribute
+-----------------
+
+We want to make sure that the Ironic Staging Drivers project is a
+welcoming and friendly place to contribute code. Therefore, we want to
+avoid bureaucratic processes as much as possible. If you want to propose
+a driver to be included in the repository: Just submit the code!
+
+How do I submit the code?
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+#. Before we can accept your patches, you'll
+   have to `agree to a contributor license agreement
+   <http://docs.openstack.org/infra/manual/developers.html#account-setup>`_.
+
+#. Learn about `how to use our Gerrit review system
+   <http://docs.openstack.org/infra/manual/developers.html#development-workflow>`_.
+
+#. Get the code::
+
+     git clone git://git.openstack.org/openstack/ironic-staging-drivers
+
+#. Make your changes and write a nice commit message explaining the
+   change in details.
+
+#. Submit the code!
+
+
 Useful links
 ------------
 
