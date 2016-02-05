@@ -40,6 +40,17 @@ master_doc = 'index'
 project = u'ironic-staging-drivers'
 copyright = u'2016, Ironic Staging Drivers Developers '
 
+# The version info for the project you're documenting, acts as replacement for
+# |version| and |release|, also used in various other places throughout the
+# built documents.
+#
+# The short X.Y version.
+from ironic_staging_drivers import version as isd_version
+# The full version, including alpha/beta/rc tags.
+release = isd_version.version_info.release_string()
+# The short X.Y version.
+version = isd_version.version_info.version_string()
+
 # If true, '()' will be appended to :func: etc. cross-reference text.
 add_function_parentheses = True
 
