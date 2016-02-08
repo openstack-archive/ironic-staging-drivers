@@ -1,7 +1,6 @@
 [run]
 branch = True
 source = ironic_staging_drivers
-omit = ironic_staging_drivers/openstack/*
 
 [report]
 ignore_errors = True
