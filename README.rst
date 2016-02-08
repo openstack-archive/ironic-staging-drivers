@@ -57,5 +57,6 @@ Useful links
 ------------
 
 * Free software: Apache license
+* Documentation: http://ironic-staging-drivers.rtfd.org
 * Source: http://git.openstack.org/cgit/openstack/ironic-staging-drivers
 * Bugs: http://bugs.launchpad.net/ironic-staging-drivers
