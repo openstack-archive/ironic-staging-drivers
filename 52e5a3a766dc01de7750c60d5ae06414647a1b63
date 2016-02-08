@@ -1,0 +1,9 @@
+Code-Review+2: Dmitry Tantsur <divius.inside@gmail.com>
+Code-Review+1: Imre Farkas <ifarkas@redhat.com>
+Workflow+1: Lucas Alvares Gomes <lucasagomes@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Mon, 08 Feb 2016 14:20:25 +0000
+Reviewed-on: https://review.openstack.org/276826
+Project: openstack/ironic-staging-drivers
+Branch: refs/heads/master
