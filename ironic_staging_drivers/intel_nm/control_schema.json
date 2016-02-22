@@ -1,0 +1,25 @@
+{
+    "title": "Intel Node Manager policies control schema",
+    "type": "object",
+    "properties": {
+        "scope": {
+            "type": "string",
+            "enum": ["global", "domain", "policy"]
+        },
+        "enable": {
+            "type": "boolean"
+        },
+        "domain_id": {
+            "type": "string",
+            "enum": ["platform", "cpu", "memory", "io"]
+        },
+        "policy_id": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+        }
+    },
+    "required": ["scope", "enable"],
+    "additionalProperties": false
+}
+
