@@ -1,0 +1,17 @@
+{
+    "title": "Intel Node Manager domain and policy id json schema",
+    "type": "object",
+    "properties": {
+        "domain_id": {
+            "type": "string",
+            "enum": ["platform", "cpu", "memory", "io"]
+        },
+        "policy_id": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+        }
+    },
+    "required": ["domain_id", "policy_id"],
+    "additionalProperties": false
+}
