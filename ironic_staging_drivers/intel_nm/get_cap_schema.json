@@ -1,0 +1,21 @@
+{
+    "title": "Intel Node Manager get capabilities schema",
+    "type": "object",
+    "properties": {
+        "domain_id": {
+            "type": "string",
+            "enum": ["platform", "cpu", "memory", "io"]
+        },
+        "policy_trigger": {
+            "type": "string",
+            "enum": ["none", "temperature", "power", "reset", "boot"]
+        },
+        "power_domain": {
+            "type": "string",
+            "enum": ["primary", "secondary"]
+        }
+    },
+    "required": ["domain_id", "policy_trigger", "power_domain" ],
+    "additionalProperties": false
+}
+
