@@ -1,0 +1,48 @@
+{
+    "title": "Intel Node Manager policy suspend periods json schema",
+    "type": "object",
+    "properties": {
+        "domain_id": {
+            "type": "string",
+            "enum": ["platform", "cpu", "memory", "io"]
+        },
+        "policy_id": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+        },
+        "periods": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "start": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 240
+                    },
+                    "stop": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 240
+                    },
+                    "days": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+                        },
+                        "uniqueItems": true,
+                        "minItems": 1
+                    }
+                },
+                "required": ["start", "stop", "days" ],
+                "additionalProperties": false
+            },
+            "minItems": 1,
+            "maxItems": 5
+        }
+    },
+    "required": ["domain_id", "policy_id", "periods" ],
+    "additionalProperties": false
+}
