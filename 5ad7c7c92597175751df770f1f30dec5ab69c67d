@@ -1,0 +1,10 @@
+Code-Review+1: Tan Lin <lin.tan@intel.com>
+Code-Review+1: Yuriy Zveryanskyy <yzveryanskyy@mirantis.com>
+Code-Review+2: Dmitry Tantsur <divius.inside@gmail.com>
+Workflow+1: Lucas Alvares Gomes <lucasagomes@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Fri, 26 Feb 2016 12:29:35 +0000
+Reviewed-on: https://review.openstack.org/273577
+Project: openstack/ironic-staging-drivers
+Branch: refs/heads/master
