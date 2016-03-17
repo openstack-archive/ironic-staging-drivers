@@ -243,6 +243,65 @@ class IntelNMPoliciesCommandTestCase(base.TestCase):
         self.assertRaises(exception.IPMIFailure, commands.parse_version,
                           raw_data)
 
+    def test_reset_statistics_global(self):
+        data = {'scope': 'global', 'domain_id': 'platform'}
+        expected = ['0x2E', '0xC7', '0x57', '0x01', '0x00', '0x00', '0x00',
+                    '0x00']
+        result = commands.reset_statistics(data)
+        self.assertEqual(expected, result)
+
+    def test_reset_statistics_policy(self):
+        data = {'scope': 'policy', 'domain_id': 'platform', 'policy_id': 111}
+        expected = ['0x2E', '0xC7', '0x57', '0x01', '0x00', '0x01', '0x00',
+                    '0x6F']
+        result = commands.reset_statistics(data)
+        self.assertEqual(expected, result)
+
+    def test_reset_statistics_parameter(self):
+        data = {'scope': 'global', 'domain_id': 'platform',
+                'parameter_name': 'response_time'}
+        expected = ['0x2E', '0xC7', '0x57', '0x01', '0x00', '0x1C', '0x00',
+                    '0x00']
+        result = commands.reset_statistics(data)
+        self.assertEqual(expected, result)
+
+    def test_get_statistics_global(self):
+        data = {'scope': 'global', 'domain_id': 'platform',
+                'parameter_name': 'power'}
+        expected = ['0x2E', '0xC8', '0x57', '0x01', '0x00', '0x01', '0x00',
+                    '0x00']
+        result = commands.get_statistics(data)
+        self.assertEqual(expected, result)
+
+    def test_get_statistics_policy(self):
+        data = {'scope': 'policy', 'domain_id': 'platform', 'policy_id': 111,
+                'parameter_name': 'power'}
+        expected = ['0x2E', '0xC8', '0x57', '0x01', '0x00', '0x11', '0x00',
+                    '0x6F']
+        result = commands.get_statistics(data)
+        self.assertEqual(expected, result)
+
+    def test_parse_statistics(self):
+        raw_data = ['0x00', '0x00', '0x00', '0x80', '0x00', '0x20', '0x00',
+                    '0xF0', '0x00', '0x60', '0x00', '0x00', '0x01', '0x20',
+                    '0x40', '0x01', '0x01', '0x00', '0x00', '0xF0']
+        expected = {'activation_state': True, 'administrative_enabled': True,
+                    'average_value': 96, 'current_value': 128,
+                    'domain_id': 'platform', 'maximum_value': 240,
+                    'measurement_state': True, 'minimum_value': 32,
+                    'operational_state': True, 'reporting_period': 257,
+                    'timestamp': '2004-02-03T20:13:52'}
+
+        result = commands.parse_statistics(raw_data)
+        self.assertEqual(expected, result)
+
+    def test_parse_statistics_invalid_timestamp(self):
+        raw_data = ['0x00', '0x00', '0x00', '0x80', '0x00', '0x20', '0x00',
+                    '0xF0', '0x00', '0x60', '0x00', '0xFF', '0xFF', '0xFF',
+                    '0xFF', '0x01', '0x01', '0x00', '0x00', '0xF0']
+        result = commands.parse_statistics(raw_data)
+        self.assertEqual(commands._INVALID_TIME, result['timestamp'])
+
 
 class ParsingFromFileTestCase(base.TestCase):
 
