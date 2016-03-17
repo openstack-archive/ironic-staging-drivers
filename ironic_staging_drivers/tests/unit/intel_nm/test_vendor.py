@@ -47,6 +47,9 @@ _GET_CAP = {'domain_id': 'platform', 'policy_trigger': 'none',
 
 _CONTROL = {'scope': 'global', 'enable': True}
 
+_STATISTICS = {'scope': 'global', 'domain_id': 'platform',
+               'parameter_name': 'response_time'}
+
 _VENDOR_METHODS_DATA = {'get_nm_policy': _MAIN_IDS,
                         'remove_nm_policy': _MAIN_IDS,
                         'get_nm_policy_suspend': _MAIN_IDS,
@@ -54,7 +57,9 @@ _VENDOR_METHODS_DATA = {'get_nm_policy': _MAIN_IDS,
                         'set_nm_policy': _POLICY,
                         'set_nm_policy_suspend': _SUSPEND,
                         'get_nm_capabilities': _GET_CAP,
-                        'control_nm_policy': _CONTROL}
+                        'control_nm_policy': _CONTROL,
+                        'get_nm_statistics': _STATISTICS,
+                        'reset_nm_statistics': _STATISTICS}
 
 
 class IntelNMPassthruTestCase(db_base.DbTestCase):
@@ -267,6 +272,48 @@ class IntelNMPassthruTestCase(db_base.DbTestCase):
                               task.driver.vendor.validate, task,
                               'set_nm_policy', 'fake', **data)
 
+    def test_validate_statistics_no_policy(self):
+        data = {'scope': 'policy', 'domain_id': 'platform'}
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            self.assertRaises(exception.MissingParameterValue,
+                              task.driver.vendor.validate, task,
+                              'reset_nm_statistics', 'fake', **data)
+
+    def test_validate_statistics_no_domain(self):
+        data = {'scope': 'global', 'parameter_name': 'power'}
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            self.assertRaises(exception.InvalidParameterValue,
+                              task.driver.vendor.validate, task,
+                              'get_nm_statistics', 'fake', **data)
+
+    def test_reset_statistics_invalid_parameter(self):
+        data = {'scope': 'global', 'domain_id': 'platform',
+                'parameter_name': 'power'}
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            self.assertRaises(exception.InvalidParameterValue,
+                              task.driver.vendor.validate, task,
+                              'reset_nm_statistics', 'fake', **data)
+
+    def test_get_statistics_no_parameter(self):
+        data = {'scope': 'global', 'domain_id': 'platform'}
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            self.assertRaises(exception.MissingParameterValue,
+                              task.driver.vendor.validate, task,
+                              'get_nm_statistics', 'fake', **data)
+
+    def test_get_statistics_invalid_parameter(self):
+        data = {'scope': 'policy', 'domain_id': 'platform', 'policy_id': 111,
+                'parameter_name': 'response_time'}
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            self.assertRaises(exception.InvalidParameterValue,
+                              task.driver.vendor.validate, task,
+                              'get_nm_statistics', 'fake', **data)
+
     @mock.patch.object(nm_vendor, '_execute_nm_command', spec_set=True,
                        autospec=True)
     def test_control_nm_policy(self, mock_exec):
@@ -352,3 +399,22 @@ class IntelNMPassthruTestCase(db_base.DbTestCase):
             mock_exec.assert_called_once_with(task, {},
                                               nm_commands.get_version,
                                               nm_commands.parse_version)
+
+    @mock.patch.object(nm_vendor, '_execute_nm_command', spec_set=True,
+                       autospec=True)
+    def test_get_nm_statistics(self, mock_exec):
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            task.driver.vendor.get_nm_statistics(task)
+            mock_exec.assert_called_once_with(task, {},
+                                              nm_commands.get_statistics,
+                                              nm_commands.parse_statistics)
+
+    @mock.patch.object(nm_vendor, '_execute_nm_command', spec_set=True,
+                       autospec=True)
+    def test_reset_nm_statistics(self, mock_exec):
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            task.driver.vendor.reset_nm_statistics(task)
+            mock_exec.assert_called_once_with(task, {},
+                                              nm_commands.reset_statistics)

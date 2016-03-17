@@ -33,3 +33,7 @@ class AMTFailure(exception.IronicException):
 
 class LibvirtError(exception.IronicException):
     message = _("Libvirt call failed: %(err)s.")
+
+
+class InvalidIPMITimestamp(exception.IronicException):
+    pass

@@ -12,13 +12,19 @@
 
 import binascii
 import collections
+import datetime
 import struct
 
-from ironic.common import exception
+from ironic.common import exception as ironic_exception
+from oslo_log import log
 import six
 
+from ironic_staging_drivers.common import exception
 from ironic_staging_drivers.common.i18n import _
+from ironic_staging_drivers.common.i18n import _LW
 
+
+LOG = log.getLogger(__name__)
 
 INTEL_NM_DOMAINS = {
     'platform': 0x00,
@@ -84,6 +90,27 @@ IPMI_VERSIONS = {
     0x03: '3.0'
 }
 
+INTEL_NM_STATISTICS = {
+    'global': {
+        'power': 0x01,
+        'temperature': 0x02,
+        'throttling': 0x03,
+        'airflow': 0x04,
+        'airflow_temperature': 0x05,
+        'chassis_power': 0x06,
+        'unhandled_requests': 0x1B,
+        'response_time': 0x1C,
+        'cpu_throttling': 0x1D,  # deprecated
+        'memory_throttling': 0x1E,  # deprecated
+        'communication_failures': 0x1F
+    },
+    'policy': {
+        'power': 0x11,
+        'trigger': 0x12,
+        'throttling': 0x13
+    }
+}
+
 
 def _reverse_dict(d):
     return {v: k for k, v in d.items()}
@@ -110,6 +137,12 @@ INTEL_NM_SUSPEND_SET = '0xC5'
 INTEL_NM_SUSPEND_GET = '0xC6'
 INTEL_NM_CAPABILITIES_GET = '0xC9'
 INTEL_NM_VERSION_GET = '0xCA'
+INTEL_NM_STATISTICS_RESET = '0xC7'
+INTEL_NM_STATISTICS_GET = '0xC8'
+
+_INVALID_TIME = datetime.datetime.utcfromtimestamp(0).isoformat()
+_UNSPECIFIED_TIMESTAMP = 0xFFFFFFFF
+_INIT_TIMESTAMP_MAX = 0x20000000
 
 
 def _handle_parsing_error(func):
@@ -121,11 +154,11 @@ def _handle_parsing_error(func):
         try:
             return func(raw_data)
         except (IndexError, struct.error):
-            raise exception.IPMIFailure(msg % _('has wrong length.'))
+            raise ironic_exception.IPMIFailure(msg % _('has wrong length.'))
         except KeyError:
-            raise exception.IPMIFailure(msg % _('is corrupted.'))
+            raise ironic_exception.IPMIFailure(msg % _('is corrupted.'))
         except ValueError:
-            raise exception.IPMIFailure(msg % _('cannot be converted.'))
+            raise ironic_exception.IPMIFailure(msg % _('cannot be converted.'))
 
     return wrapper
 
@@ -187,6 +220,19 @@ def _days_compose(days):
 def _days_parse(pattern):
     """Parse binary data with days of week."""
     return [day for day in INTEL_NM_DAYS if pattern & INTEL_NM_DAYS[day]]
+
+
+def _ipmi_timestamp_to_isotime(timestamp):
+    """Convert IPMI timestamp to iso8601."""
+    if timestamp == _UNSPECIFIED_TIMESTAMP:
+        raise exception.InvalidIPMITimestamp(_('IPMI timestamp is invalid or '
+                                               'unspecified'))
+    if timestamp <= _INIT_TIMESTAMP_MAX:
+        raise exception.InvalidIPMITimestamp(_('IPMI initialization is not '
+                                               'completed, relative time is '
+                                               '%d second') % timestamp)
+
+    return datetime.datetime.utcfromtimestamp(timestamp).isoformat()
 
 
 def set_policy(policy):
@@ -399,6 +445,72 @@ def parse_version(raw_data):
     version['firmware'] = str(raw_int[6]) + '.' + str(raw_int[7])
 
     return version
+
+
+def reset_statistics(data):
+    """Return hex data for reset statistics command."""
+    cmd = _create_command_head(INTEL_NM_STATISTICS_RESET)
+    global_scope = data['scope'] == 'global'
+    if 'parameter_name' in data:
+        # statistics parameter is set, get corresponding value
+        mode = INTEL_NM_STATISTICS['global'][data['parameter_name']]
+        # domain id should be always 0x00 for global reset by parameter name
+        data['domain_id'] = 'platform'
+    else:
+        mode = 0x00 if global_scope else 0x01
+    _append_to_command(cmd, _hex(mode))
+    if global_scope:
+        data['policy_id'] = 0x00  # will be ignored
+    _add_domain_policy_id(cmd, data)
+
+    return cmd
+
+
+def get_statistics(data):
+    """Return hex data for get statistics command."""
+    cmd = _create_command_head(INTEL_NM_STATISTICS_GET)
+    scope = data['scope']
+    _append_to_command(cmd, _hex(
+                       INTEL_NM_STATISTICS[scope][data['parameter_name']]))
+    if scope == 'global':
+        data['policy_id'] = 0x00  # will be ignored
+    # case for "special" Node Manager global parameters (Mode 0x1B - 0x1F)
+    if 'domain_id' not in data:
+        data['domain_id'] = 'platform'  # 0x00
+    _add_domain_policy_id(cmd, data)
+
+    return cmd
+
+
+@_handle_parsing_error
+def parse_statistics(raw_data):
+    """Parse statistics data."""
+    statistics = {}
+    raw_int = _raw_to_int(raw_data)
+
+    statistics_values = struct.unpack('<HHHHII', bytearray(
+                                      raw_int[3:19]))
+    statistics_names = ('current_value', 'minimum_value',
+                        'maximum_value', 'average_value',
+                        'timestamp', 'reporting_period')
+    _add_to_dict(statistics, statistics_values, statistics_names)
+    try:
+        isotime = _ipmi_timestamp_to_isotime(statistics['timestamp'])
+    except exception.InvalidIPMITimestamp as e:
+        # there is not "bad time" in standard, reset to start the epoch
+        statistics['timestamp'] = _INVALID_TIME
+        LOG.warning(_LW('Invalid timestamp in Node Nanager statistics '
+                        'data: %s'), six.text_type(e))
+    else:
+        statistics['timestamp'] = isotime
+
+    statistics['domain_id'] = INTEL_NM_DOMAINS_REV[raw_int[19] & 0x0F]
+    statistics['administrative_enabled'] = bool(raw_int[19] & 0x10)
+    statistics['operational_state'] = bool(raw_int[19] & 0x20)
+    statistics['measurement_state'] = bool(raw_int[19] & 0x40)
+    statistics['activation_state'] = bool(raw_int[19] & 0x80)
+
+    return statistics
 
 
 # Code below taken from Ceilometer
