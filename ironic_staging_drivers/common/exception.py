@@ -29,3 +29,7 @@ class AMTConnectFailure(exception.IronicException):
 
 class AMTFailure(exception.IronicException):
     _msg_fmt = _("AMT call failed: %(cmd)s.")
+
+
+class InvalidIPMITimestamp(exception.IronicException):
+    pass
