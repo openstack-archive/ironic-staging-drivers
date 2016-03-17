@@ -1,0 +1,4 @@
+---
+features:
+  - Added two vendor methods "get_nm_statistics" and "reset_nm_statistics"
+    to Intel Node Manager driver for Node Manager statistics feature support
