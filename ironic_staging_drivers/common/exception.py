@@ -18,3 +18,7 @@ from ironic.common import exception
 
 class WOLOperationError(exception.IronicException):
     pass
+
+
+class InvalidIPMITimestamp(exception.IronicException):
+    pass

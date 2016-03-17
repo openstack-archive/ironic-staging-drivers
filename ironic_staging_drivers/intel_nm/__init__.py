@@ -52,7 +52,9 @@ class AgentAndIPMIToolIntelNMDriver(base.BaseDriver):
                         'get_nm_policy_suspend': self.nm_vendor,
                         'remove_nm_policy_suspend': self.nm_vendor,
                         'get_nm_capabilities': self.nm_vendor,
-                        'get_nm_version': self.nm_vendor}
+                        'get_nm_version': self.nm_vendor,
+                        'get_nm_statistics': self.nm_vendor,
+                        'reset_nm_statistics': self.nm_vendor}
         self.driver_passthru_mapping = {'lookup': self.agent_vendor}
         self.vendor = utils.MixinVendorInterface(
             self.mapping,

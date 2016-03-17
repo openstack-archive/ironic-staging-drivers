@@ -35,7 +35,7 @@ CONF.import_opt('tempdir', 'ironic.common.utils')
 LOG = log.getLogger(__name__)
 
 SCHEMAS = ('control_schema', 'get_cap_schema', 'main_ids_schema',
-           'policy_schema', 'suspend_schema')
+           'policy_schema', 'suspend_schema', 'statistics_schema')
 
 
 def _command_to_string(cmd):
@@ -143,6 +143,63 @@ class IntelNMVendorPassthru(base.VendorInterface):
             with open(filename, 'r') as sf:
                 setattr(self, schema, json.load(sf))
 
+    def _validate_policy_methods(self, method, **kwargs):
+        no_domain = _('Missing "domain_id"')
+
+        if method in ('get_nm_policy', 'remove_nm_policy',
+                      'get_nm_policy_suspend', 'remove_nm_policy_suspend'):
+            jsonschema.validate(kwargs, self.main_ids_schema)
+
+        elif method == 'control_nm_policy':
+            jsonschema.validate(kwargs, self.control_schema)
+            if kwargs['scope'] == 'domain' and 'domain_id' not in kwargs:
+                raise exception.MissingParameterValue(no_domain)
+            if kwargs['scope'] == 'policy':
+                if 'domain_id' not in kwargs:
+                    raise exception.MissingParameterValue(no_domain)
+                if 'policy_id' not in kwargs:
+                    raise exception.MissingParameterValue(_('Missing '
+                                                            '"policy_id"'))
+
+        elif method == 'set_nm_policy':
+            jsonschema.validate(kwargs, self.policy_schema)
+            if kwargs['policy_trigger'] == 'boot':
+                if not isinstance(kwargs['target_limit'], dict):
+                    raise exception.InvalidParameterValue(_('Invalid boot '
+                                                            'policy'))
+
+        elif method == 'set_nm_policy_suspend':
+            jsonschema.validate(kwargs, self.suspend_schema)
+
+        elif method == 'get_nm_capabilities':
+            jsonschema.validate(kwargs, self.get_cap_schema)
+
+    def _validate_statistics_methods(self, method, **kwargs):
+        jsonschema.validate(kwargs, self.statistics_schema)
+        if kwargs['scope'] == 'policy' and 'policy_id' not in kwargs:
+            raise exception.MissingParameterValue(_('Missing "policy_id"'))
+
+            if 'parameter_name' in kwargs:
+                if method == 'reset_nm_statistics':
+                    valid_params = (
+                        'unhandled_requests', 'response_time',
+                        'cpu_throttling', 'memory_throttling',
+                        'communication_failures')
+                    if kwargs['parameter_name'] not in valid_params:
+                        raise exception.InvalidParameterValue(
+                            _('Invalid parameter name for resetting '
+                              'statistic, individual reset is possible only '
+                              'for: %s') % ', '.join(valid_params))
+                else:
+                    # valid parameters depend on scope
+                    if (kwargs['parameter_name'] not in
+                        nm_commands.INTEL_NM_STATISTICS[kwargs['scope']]):
+                            raise exception.InvalidParameterValue(
+                                _('Invalid parameter name %(param)% for scope '
+                                  '%(scope)s') %
+                                {'param': kwargs['parameter_name'],
+                                 'scope': kwargs['scope']})
+
     def get_properties(self):
         """Returns the properties of the interface.."""
         return {}
@@ -161,35 +218,10 @@ class IntelNMVendorPassthru(base.VendorInterface):
         :raises: MissingParameterValue if parameters missing in supplied data.
         """
         try:
-            if method in ('get_nm_policy', 'remove_nm_policy',
-                          'get_nm_policy_suspend', 'remove_nm_policy_suspend'):
-                jsonschema.validate(kwargs, self.main_ids_schema)
-
-            elif method == 'control_nm_policy':
-                jsonschema.validate(kwargs, self.control_schema)
-                no_domain = _('Missing "domain_id"')
-                no_policy = _('Missing "policy_id"')
-                if kwargs['scope'] == 'domain' and not kwargs.get('domain_id'):
-                    raise exception.MissingParameterValue(no_domain)
-                if kwargs['scope'] == 'policy':
-                    if not kwargs.get('domain_id'):
-                        raise exception.MissingParameterValue(no_domain)
-                    if not kwargs.get('policy_id'):
-                        raise exception.MissingParameterValue(no_policy)
-
-            elif method == 'set_nm_policy':
-                jsonschema.validate(kwargs, self.policy_schema)
-                if kwargs['policy_trigger'] == 'boot':
-                    if not isinstance(kwargs['target_limit'], dict):
-                        raise exception.InvalidParameterValue(_('Invalid boot '
-                                                                'policy'))
-
-            elif method == 'set_nm_policy_suspend':
-                jsonschema.validate(kwargs, self.suspend_schema)
-
-            elif method == 'get_nm_capabilities':
-                jsonschema.validate(kwargs, self.get_cap_schema)
-
+            if 'statistics' in method:
+                self._validate_statistics_methods(method, **kwargs)
+            else:
+                self._validate_policy_methods(method, **kwargs)
         except json_schema_exc.ValidationError as e:
             raise exception.InvalidParameterValue(_('Input data validation '
                                                     'error: %s') % e)
@@ -292,3 +324,26 @@ class IntelNMVendorPassthru(base.VendorInterface):
         """
         return _execute_nm_command(task, kwargs, nm_commands.get_version,
                                    nm_commands.parse_version)
+
+    @base.passthru(['GET'], async=False)
+    def get_nm_statistics(self, task, **kwargs):
+        """Get Intel Node Manager statistics.
+
+        :param task: a TaskManager instance.
+        :param kwargs: data passed to method.
+        :raises: IPMIFailure on an error.
+        :returns: a dictionary containing statistics info.
+        """
+        return _execute_nm_command(task, kwargs,
+                                   nm_commands.get_statistics,
+                                   nm_commands.parse_statistics)
+
+    @base.passthru(['PUT'])
+    def reset_nm_statistics(self, task, **kwargs):
+        """Reset Intel Node Manager statistics.
+
+        :param task: a TaskManager instance.
+        :param kwargs: data passed to method.
+        :raises: IPMIFailure on an error.
+        """
+        _execute_nm_command(task, kwargs, nm_commands.reset_statistics)
