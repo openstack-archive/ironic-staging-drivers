@@ -1,0 +1,6 @@
+# This file lists all python libraries which are utilized by drivers,
+# and may not be listed in global-requirements.
+
+
+# libvirt driver requires libvirt-python library which is available on pypi
+libvirt-python>=1.2.5 # LGPLv2+
