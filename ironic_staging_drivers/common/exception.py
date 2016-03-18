@@ -29,3 +29,7 @@ class AMTConnectFailure(exception.IronicException):
 
 class AMTFailure(exception.IronicException):
     _msg_fmt = _("AMT call failed: %(cmd)s.")
+
+
+class LibvirtError(exception.IronicException):
+    message = _("Libvirt call failed: %(err)s.")
