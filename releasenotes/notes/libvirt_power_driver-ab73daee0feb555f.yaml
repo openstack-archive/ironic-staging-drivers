@@ -1,0 +1,7 @@
+---
+features:
+  - Addition of the Libvirt power management driver.
+    This driver uses python-libvirt library to connect
+    to hypervisor. It is fast enough and may be used
+    for scale testing.
+
