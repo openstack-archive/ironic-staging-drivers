@@ -14,7 +14,12 @@
 #    under the License.
 
 from ironic.common import exception
+from ironic.common.i18n import _
 
 
 class WOLOperationError(exception.IronicException):
     pass
+
+
+class LibvirtError(exception.IronicException):
+    message = _("Libvirt call failed: %(err)s.")
