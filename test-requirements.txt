@@ -16,3 +16,6 @@ testtools>=1.4.0 # MIT
 os-testr>=0.4.1 # Apache-2.0
 reno>=0.1.1 # Apache2
 mock>=1.2 # BSD
+
+# libvirt driver requires libvirt-python
+libvirt-python>=1.2.5 # LGPLv2+
