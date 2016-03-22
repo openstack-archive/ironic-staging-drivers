@@ -18,6 +18,7 @@ import os
 
 from ironic.common import exception
 from ironic.conductor import task_manager
+from ironic.drivers.modules import ipmitool
 from ironic.tests.unit.conductor import mgr_utils
 from ironic.tests.unit.db import base as db_base
 from ironic.tests.unit.objects import utils as obj_utils
@@ -25,7 +26,6 @@ from ironic_lib import utils as ironic_utils
 import mock
 from oslo_config import cfg
 
-from ironic_staging_drivers.intel_nm import ipmi
 from ironic_staging_drivers.intel_nm import nm_commands
 from ironic_staging_drivers.intel_nm import nm_vendor
 
@@ -73,8 +73,8 @@ class IntelNMPassthruTestCase(db_base.DbTestCase):
 
     @mock.patch.object(ironic_utils, 'unlink_without_raise', spec_set=True,
                        autospec=True)
-    @mock.patch.object(ipmi, 'send_raw', spec_set=True, autospec=True)
-    @mock.patch.object(ipmi, 'dump_sdr', spec_set=True, autospec=True)
+    @mock.patch.object(ipmitool, 'send_raw', spec_set=True, autospec=True)
+    @mock.patch.object(ipmitool, 'dump_sdr', spec_set=True, autospec=True)
     @mock.patch.object(nm_commands, 'parse_slave_and_channel', spec_set=True,
                        autospec=True)
     def test__get_nm_address_detected(self, parse_mock, dump_mock, raw_mock,
@@ -95,8 +95,8 @@ class IntelNMPassthruTestCase(db_base.DbTestCase):
 
     @mock.patch.object(ironic_utils, 'unlink_without_raise', spec_set=True,
                        autospec=True)
-    @mock.patch.object(ipmi, 'send_raw', spec_set=True, autospec=True)
-    @mock.patch.object(ipmi, 'dump_sdr', spec_set=True, autospec=True)
+    @mock.patch.object(ipmitool, 'send_raw', spec_set=True, autospec=True)
+    @mock.patch.object(ipmitool, 'dump_sdr', spec_set=True, autospec=True)
     @mock.patch.object(nm_commands, 'parse_slave_and_channel', spec_set=True,
                        autospec=True)
     def test__get_nm_address_already_detected(self, parse_mock, dump_mock,
@@ -117,8 +117,8 @@ class IntelNMPassthruTestCase(db_base.DbTestCase):
 
     @mock.patch.object(ironic_utils, 'unlink_without_raise', spec_set=True,
                        autospec=True)
-    @mock.patch.object(ipmi, 'send_raw', spec_set=True, autospec=True)
-    @mock.patch.object(ipmi, 'dump_sdr', spec_set=True, autospec=True)
+    @mock.patch.object(ipmitool, 'send_raw', spec_set=True, autospec=True)
+    @mock.patch.object(ipmitool, 'dump_sdr', spec_set=True, autospec=True)
     @mock.patch.object(nm_commands, 'parse_slave_and_channel', spec_set=True,
                        autospec=True)
     def test__get_nm_address_not_detected(self, parse_mock, dump_mock,
@@ -139,8 +139,8 @@ class IntelNMPassthruTestCase(db_base.DbTestCase):
 
     @mock.patch.object(ironic_utils, 'unlink_without_raise', spec_set=True,
                        autospec=True)
-    @mock.patch.object(ipmi, 'send_raw', spec_set=True, autospec=True)
-    @mock.patch.object(ipmi, 'dump_sdr', spec_set=True, autospec=True)
+    @mock.patch.object(ipmitool, 'send_raw', spec_set=True, autospec=True)
+    @mock.patch.object(ipmitool, 'dump_sdr', spec_set=True, autospec=True)
     @mock.patch.object(nm_commands, 'parse_slave_and_channel', spec_set=True,
                        autospec=True)
     def test__get_nm_address_raw_fail(self, parse_mock, dump_mock, raw_mock,
@@ -162,8 +162,8 @@ class IntelNMPassthruTestCase(db_base.DbTestCase):
 
     @mock.patch.object(ironic_utils, 'unlink_without_raise', spec_set=True,
                        autospec=True)
-    @mock.patch.object(ipmi, 'send_raw', spec_set=True, autospec=True)
-    @mock.patch.object(ipmi, 'dump_sdr', spec_set=True, autospec=True)
+    @mock.patch.object(ipmitool, 'send_raw', spec_set=True, autospec=True)
+    @mock.patch.object(ipmitool, 'dump_sdr', spec_set=True, autospec=True)
     @mock.patch.object(nm_commands, 'parse_slave_and_channel', spec_set=True,
                        autospec=True)
     def test__get_nm_address_already_not_detected(self, parse_mock, dump_mock,
@@ -182,7 +182,7 @@ class IntelNMPassthruTestCase(db_base.DbTestCase):
         self.assertFalse(raw_mock.called)
         self.assertFalse(unlink_mock.called)
 
-    @mock.patch.object(ipmi, 'send_raw', spec_set=True, autospec=True)
+    @mock.patch.object(ipmitool, 'send_raw', spec_set=True, autospec=True)
     @mock.patch.object(nm_vendor, '_get_nm_address', spec_set=True,
                        autospec=True)
     def test__execute_nm_command(self, addr_mock, raw_mock):
@@ -205,7 +205,7 @@ class IntelNMPassthruTestCase(db_base.DbTestCase):
             raw_mock.assert_called_once_with(task, '0x01 0x02')
             fake_parse.assert_called_once_with(['0x03', '0x04'])
 
-    @mock.patch.object(ipmi, 'send_raw', spec_set=True, autospec=True)
+    @mock.patch.object(ipmitool, 'send_raw', spec_set=True, autospec=True)
     @mock.patch.object(nm_vendor, '_get_nm_address', spec_set=True,
                        autospec=True)
     def test__execute_nm_command_no_parse(self, addr_mock, raw_mock):

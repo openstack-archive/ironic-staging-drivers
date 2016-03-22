@@ -15,6 +15,7 @@ import os
 
 from ironic.common import exception
 from ironic.drivers import base
+from ironic.drivers.modules import ipmitool
 from ironic_lib import utils as ironic_utils
 import jsonschema
 from jsonschema import exceptions as json_schema_exc
@@ -26,7 +27,6 @@ import six
 from ironic_staging_drivers.common.i18n import _
 from ironic_staging_drivers.common.i18n import _LE
 from ironic_staging_drivers.common.i18n import _LI
-from ironic_staging_drivers.intel_nm import ipmi
 from ironic_staging_drivers.intel_nm import nm_commands
 
 
@@ -72,7 +72,7 @@ def _get_nm_address(task):
     sdr_filename = os.path.join(CONF.tempdir, node.uuid + '.sdr')
     res = None
     try:
-        ipmi.dump_sdr(task, sdr_filename)
+        ipmitool.dump_sdr(task, sdr_filename)
         res = nm_commands.parse_slave_and_channel(sdr_filename)
     finally:
         ironic_utils.unlink_without_raise(sdr_filename)
@@ -88,7 +88,8 @@ def _get_nm_address(task):
     node.driver_info['ipmi_target_channel'] = channel
     node.driver_info['ipmi_target_address'] = address
     try:
-        ipmi.send_raw(task, _command_to_string(nm_commands.get_version(None)))
+        ipmitool.send_raw(task,
+                          _command_to_string(nm_commands.get_version(None)))
         _save_to_node(channel, address)
         return channel, address
     except exception.IPMIFailure:
@@ -122,7 +123,7 @@ def _execute_nm_command(task, data, command_func, parse_func=None):
     driver_info['ipmi_target_channel'] = channel
     driver_info['ipmi_target_address'] = address
     cmd = _command_to_string(command_func(data))
-    out = ipmi.send_raw(task, cmd)[0]
+    out = ipmitool.send_raw(task, cmd)[0]
     if parse_func:
         try:
             return parse_func(out.split())
