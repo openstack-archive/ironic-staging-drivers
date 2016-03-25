@@ -257,6 +257,7 @@ class IntelNMPassthruTestCase(db_base.DbTestCase):
 
     def test_validate_policy_boot(self):
         data = _POLICY.copy()
+        del data['correction_time']
         data['policy_trigger'] = 'boot'
         data['target_limit'] = {'boot_mode': 'power', 'cores_disabled': 2}
         with task_manager.acquire(self.context, self.node.uuid,
@@ -269,6 +270,15 @@ class IntelNMPassthruTestCase(db_base.DbTestCase):
         with task_manager.acquire(self.context, self.node.uuid,
                                   shared=False) as task:
             self.assertRaises(exception.InvalidParameterValue,
+                              task.driver.vendor.validate, task,
+                              'set_nm_policy', 'fake', **data)
+
+    def test_validate_policy_no_correction_time(self):
+        data = _POLICY.copy()
+        del data['correction_time']
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            self.assertRaises(exception.MissingParameterValue,
                               task.driver.vendor.validate, task,
                               'set_nm_policy', 'fake', **data)
 
