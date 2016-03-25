@@ -73,7 +73,7 @@
             "maximum": 65535
         }
     },
-    "required": ["domain_id", "enable", "policy_id", "policy_trigger", "action", "power_domain", "target_limit", "correction_time", "reporting_period" ],
+    "required": ["domain_id", "enable", "policy_id", "policy_trigger", "action", "power_domain", "target_limit", "reporting_period" ],
     "additionalProperties": false
 }
 

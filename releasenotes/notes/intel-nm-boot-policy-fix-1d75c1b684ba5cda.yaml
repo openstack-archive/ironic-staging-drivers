@@ -1,0 +1,4 @@
+---
+fixes:
+  - Set boot policy for Intel Node Manager fixed, boot policy does not require
+    "correction_time" parameter and it always should be set to zero.
