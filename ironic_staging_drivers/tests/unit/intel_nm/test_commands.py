@@ -73,10 +73,9 @@ class IntelNMPoliciesCommandTestCase(base.TestCase):
                   'storage': 'persistent', 'action': 'alert',
                   'power_domain': 'primary',
                   'target_limit': {'boot_mode': 'power', 'cores_disabled': 2},
-                  'correction_time': 2000, 'trigger_limit': 100,
-                  'reporting_period': 600}
+                  'trigger_limit': 100, 'reporting_period': 600}
         expected = ['0x2E', '0xC1', '0x57', '0x01', '0x00', '0x10', '0x7B',
-                    '0x14', '0x00', '0x04', '0x00', '0xd0', '0x07', '0x00',
+                    '0x14', '0x00', '0x04', '0x00', '0x00', '0x00', '0x00',
                     '0x00', '0x00', '0x00', '0x58', '0x02']
         result = commands.set_policy(policy)
         self.assertEqual(expected, result)
