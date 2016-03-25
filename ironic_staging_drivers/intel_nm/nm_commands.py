@@ -256,6 +256,8 @@ def set_policy(policy):
         mode = 0x00 if policy['target_limit']['boot_mode'] == 'power' else 0x01
         cores_disabled = policy['target_limit']['cores_disabled'] << 1
         limit = mode | cores_disabled
+        # correction time does not apply to boot time policy
+        policy['correction_time'] = 0
 
     policy_values = struct.pack('<HIHH', limit, policy['correction_time'],
                                 policy['trigger_limit'],

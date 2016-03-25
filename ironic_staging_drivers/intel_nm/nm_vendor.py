@@ -161,6 +161,10 @@ class IntelNMVendorPassthru(base.VendorInterface):
                 if not isinstance(kwargs['target_limit'], dict):
                     raise exception.InvalidParameterValue(_('Invalid boot '
                                                             'policy'))
+            else:
+                if 'correction_time' not in kwargs:
+                    raise exception.MissingParameterValue(
+                        _('Missing "correction_time" for no-boot policy'))
 
         elif method == 'set_nm_policy_suspend':
             jsonschema.validate(kwargs, self.suspend_schema)
