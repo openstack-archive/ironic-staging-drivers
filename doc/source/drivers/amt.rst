@@ -24,9 +24,9 @@ There are two AMT drivers:
 
 Set up your environment
 =======================
-A detailed reference is available here, and a short guide follows below:
+A detailed reference is available in `Intel Active Management Technology <https://software.intel.com/en-us/articles/intel-active-management-technology-start-here-guide-intel-amt-9#4.2>`_.
 
-   https://software.intel.com/en-us/articles/intel-active-management-technology-start-here-guide-intel-amt-9#4.2
+A short guide follows below:
 
 * Set up AMT Client
 
