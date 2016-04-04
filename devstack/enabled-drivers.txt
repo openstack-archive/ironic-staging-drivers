@@ -11,3 +11,4 @@ pxe_amt_iscsi
 pxe_amt_agent
 pxe_libvirt_ansible
 pxe_ipmitool_ansible
+pxe_ovirt_iscsi
