@@ -200,7 +200,7 @@ class IntelNMVendorPassthru(base.VendorInterface):
                     _('Parameter name is mandatory for getting statistics'))
             # valid parameters depend on scope
             if (kwargs['parameter_name'] not in
-                nm_commands.INTEL_NM_STATISTICS[kwargs['scope']]):
+                nm_commands.STATISTICS[kwargs['scope']]):
                     raise exception.InvalidParameterValue(
                         _('Invalid parameter name %(param)% for scope '
                           '%(scope)s') % {'param': kwargs['parameter_name'],
