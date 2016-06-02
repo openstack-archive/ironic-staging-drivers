@@ -1,0 +1,10 @@
+---
+# NOTE(pas-ha) Ansible 1.x does not handle async + with_*
+# As a consequence, cleaning is split to separate role for v1,
+# and the cleaning is a sync operation in this case
+- hosts: all
+
+  roles:
+    - role: wait
+      tags: wait
+    - clean-v1

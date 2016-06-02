@@ -1,0 +1,19 @@
+- name: check available memory
+  fail:
+    msg: "The image size is too big, no free memory available"
+  when: "{{ ansible_memfree_mb }} < {{ image_mem_req }}"
+# NOTE(pas-ha) Ansible v1.9.x does not support md5 sums in get_url
+# so we have to validate it manually
+- name: download image
+  get_url:
+    url: "{{ image_url }}"
+    dest: /tmp/{{ inventory_hostname }}.img
+  async: 600
+  poll: 15
+- name: calculate md5 sum
+  shell: md5sum /tmp/{{ inventory_hostname }}.img | awk '{print $1}'
+  register: md5sum
+- name: compare checksums
+  fail:
+    msg: Downloaded image has checksum {{ md5sum.stdout }}, expected {{ image_checksum }}
+  when: image_checksum is not equalto md5sum.stdout
