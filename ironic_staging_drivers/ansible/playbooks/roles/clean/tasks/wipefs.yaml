@@ -1,0 +1,6 @@
+# NOTE(pas-ha) as alternative to thorough shredding, for testing environments
+# it might suffice to wipe only the partition table to speed up cleaning
+- name: wipe partition metadata
+  become: yes
+  command: wipefs -qfa /dev/{{ item }}
+  with_items: "{{ ansible_devices }}"

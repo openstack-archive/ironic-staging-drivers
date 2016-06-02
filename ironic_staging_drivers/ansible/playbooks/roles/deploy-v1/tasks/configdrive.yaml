@@ -1,0 +1,14 @@
+- name: download configdrive data
+  get_url:
+    url: "{{ configdrive }}"
+    dest: /tmp/{{ inventory_hostname }}.cndrive
+  async: 600
+  poll: 15
+  when: "{{ configdrive != 'file' }}"
+
+- include: configdrive-file.yaml
+  when: "{{ configdrive == 'file' }}"
+
+- name: calculate configdrive size
+  command: stat -c "%s" /tmp/{{ inventory_hostname }}.cndrive
+  register: configdrive_size
