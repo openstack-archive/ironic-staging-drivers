@@ -1,0 +1,9 @@
+- include: parted.yaml
+  tags:
+  - parted
+- include: download.yaml
+  when: "{{ image_disk_format != 'raw' }}"
+- include: write.yaml
+- include: grub.yaml
+  tags:
+  - parted
