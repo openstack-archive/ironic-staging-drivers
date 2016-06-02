@@ -1,0 +1,3 @@
+- include: shred.yaml
+  tags:
+  - shred
