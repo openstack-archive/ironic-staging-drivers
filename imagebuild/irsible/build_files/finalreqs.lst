@@ -1,0 +1,7 @@
+coreutils
+gdisk
+popt
+iproute2
+glib2
+parted
+util-linux
