@@ -1,0 +1,12 @@
+---
+- include: add-ironic-nodes.yaml
+
+- hosts: ironic
+  gather_facts: no
+  roles:
+    - wait
+
+- hosts: ironic
+  roles:
+    - deploy
+    - shutdown

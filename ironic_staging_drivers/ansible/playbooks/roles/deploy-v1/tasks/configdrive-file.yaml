@@ -1,0 +1,11 @@
+- name: get configdrive dir
+  command: dirname {{ inventory_file }}
+  connection: local
+  register: config_dir
+- name: copy configdrive file to node
+  copy:
+    src: "{{ config_dir.stdout }}/{{ inventory_hostname }}.cndrive"
+    dest: /tmp/{{ inventory_hostname }}.cndrive
+- name: remove configdrive from conductor
+  command: rm -f {{ config_dir.stdout }}/{{ inventory_hostname }}.cndrive
+  connection: local
