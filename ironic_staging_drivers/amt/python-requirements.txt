@@ -1,0 +1,6 @@
+# This file lists all python libraries which are utilized by drivers,
+# but not listed in global-requirements.
+# It is intended to help package maintainers to discover additional
+# python projects they should package as optional dependencies for Ironic.
+
+pywsman
