@@ -6,3 +6,6 @@ fake_nm
 pxe_libvirt_agent
 pxe_libvirt_iscsi
 fake_libvirt_fake
+fake_amt_fake
+pxe_amt_iscsi
+pxe_amt_agent
