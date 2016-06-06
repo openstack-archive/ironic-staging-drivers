@@ -7,7 +7,8 @@ IRONIC_STAGING_DRIVERS_DIR=$DEST/ironic-staging-drivers
 # to IRONIC_ENABLED_DRIVERS if not enabled yet.
 IRONIC_STAGING_DRIVERS_ENABLED="fake_wol_fake, pxe_wol_iscsi, pxe_wol_agent, \
 agent_ipmitool_nm, fake_nm, \
-pxe_libvirt_agent, pxe_libvirt_iscsi, fake_libvirt_fake"
+pxe_libvirt_agent, pxe_libvirt_iscsi, fake_libvirt_fake, \
+fake_amt_fake, pxe_amt_iscsi, pxe_amt_agent"
 
 IRONIC_STAGING_DRIVERS_DIRS='amt intel_nm libvirt wol'
 
