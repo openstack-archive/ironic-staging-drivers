@@ -1,0 +1,8 @@
+fake_wol_fake
+pxe_wol_iscsi
+pxe_wol_agent
+agent_ipmitool_nm
+fake_nm
+pxe_libvirt_agent
+pxe_libvirt_iscsi
+fake_libvirt_fake

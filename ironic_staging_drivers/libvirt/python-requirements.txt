@@ -1,0 +1,1 @@
+libvirt-python>=1.2.5 # LGPLv2+
