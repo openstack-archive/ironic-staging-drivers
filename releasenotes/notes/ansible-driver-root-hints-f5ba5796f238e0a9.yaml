@@ -1,0 +1,5 @@
+---
+features:
+  - Support for basic root device hints added to ansible deploy driver.
+    Only exact matches are supported for now, advanced hints based on
+    oslo.utils operators are not supported yet.
