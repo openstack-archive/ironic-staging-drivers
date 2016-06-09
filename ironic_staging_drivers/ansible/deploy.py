@@ -351,6 +351,11 @@ def _parse_partitioning_info(node):
     return i_info
 
 
+def _create_root_hints_dict(root_hints):
+    """Convert string with hints to dict. """
+    return dict([key_value.split('=') for key_value in root_hints.split(',')])
+
+
 def _prepare_variables(task):
     node = task.node
     i_info = node.instance_info
@@ -382,6 +387,11 @@ def _prepare_variables(task):
             cfgdrv_type = 'file'
         variables['configdrive'] = {'type': cfgdrv_type,
                                     'location': cfgdrv_location}
+
+    root_device = deploy_utils.parse_root_device_hints(node)
+    if root_device:
+        variables['root_device_hints'] = _create_root_hints_dict(root_device)
+
     return variables
 
 
