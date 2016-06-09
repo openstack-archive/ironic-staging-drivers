@@ -348,6 +348,11 @@ def _parse_partitioning_info(node):
     return i_info
 
 
+def _create_root_hints_dict(root_hints):
+    """Convert string with hints to dict. """
+    return dict([key_value.split('=') for key_value in root_hints.split(',')])
+
+
 def _prepare_variables(task):
     node = task.node
     i_info = node.instance_info
@@ -357,7 +362,14 @@ def _prepare_variables(task):
         'checksum': i_info.get('image_checksum'),
         'disk_format': i_info.get('image_disk_format')
     }
-    return {'image': variables}
+
+    ret_vars = {'image': variables}
+
+    root_device = deploy_utils.parse_root_device_hints(node)
+    if root_device:
+        ret_vars['root_device_hints'] = _create_root_hints_dict(root_device)
+
+    return ret_vars
 
 
 def _get_clean_steps(task, interface=None, override_priorities=None):
