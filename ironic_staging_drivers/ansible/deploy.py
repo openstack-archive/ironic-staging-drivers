@@ -277,6 +277,38 @@ def _parse_partitioning_info(node):
     return {'partition_info': i_info}
 
 
+def _parse_root_device_hints(node):
+    """Convert string with hints to dict. """
+    root_device = node.properties.get('root_device')
+    if not root_device:
+        return {}
+    try:
+        parsed_hints = irlib_utils.parse_root_device_hints(root_device)
+    except ValueError as e:
+        raise exception.InvalidParameterValue(
+            _('Failed to validate the root device hints for node %(node)s. '
+              'Error: %(error)s') % {'node': node.uuid, 'error': e})
+    root_device_hints = {}
+    advanced = {}
+    for hint, value in parsed_hints.items():
+        if isinstance(value, six.string_types):
+            if value.startswith('== '):
+                root_device_hints[hint] = int(value[3:])
+            elif value.startswith('s== '):
+                root_device_hints[hint] = urlparse.unquote(value[4:])
+            else:
+                advanced[hint] = value
+        else:
+            root_device_hints[hint] = value
+    if advanced:
+        raise exception.InvalidParameterValue(
+            _('Ansible-deploy does not support advanced root device hints '
+              'based on oslo.utils operators. '
+              'Present advanced hints for node %(node)s are %(hints)s.') % {
+                  'node': node.uuid, 'hints': advanced})
+    return root_device_hints
+
+
 def _prepare_variables(task):
     node = task.node
     i_info = node.instance_info
@@ -308,6 +340,11 @@ def _prepare_variables(task):
             cfgdrv_type = 'file'
         variables['configdrive'] = {'type': cfgdrv_type,
                                     'location': cfgdrv_location}
+
+    root_device_hints = _parse_root_device_hints(node)
+    if root_device_hints:
+        variables['root_device_hints'] = root_device_hints
+
     return variables
 
 
@@ -421,6 +458,8 @@ class AnsibleDeploy(agent_base.AgentDeployMixin, base.DeployInterface):
         error_msg = _('Node %s failed to validate deploy image info. Some '
                       'parameters were missing') % node.uuid
         deploy_utils.check_for_missing_params(params, error_msg)
+        # validate root device hints, proper exceptions are raised from there
+        _parse_root_device_hints(node)
 
     def _deploy(self, task, node_address):
         """Internal function for deployment to a node."""
