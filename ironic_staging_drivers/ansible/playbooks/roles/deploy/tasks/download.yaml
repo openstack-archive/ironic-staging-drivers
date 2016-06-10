@@ -9,3 +9,21 @@
     checksum: "md5:{{ image.checksum }}"
   async: 600
   poll: 15
+  when: image.torrent is none
+
+- block:
+  - name: mkdir
+    file: path=/tmp/target state=directory mode=0755
+  - name: upload download-complete script
+    become: yes
+    copy:
+      src: aria2c_download_complete_hook.sh
+      dest: /tmp/aria2c_download_complete_hook.sh
+      mode: 755
+  - name: download
+    command: aria2c --daemon=true --log=/aria2c.log --console-log-level=warn --on-bt-download-complete=aria2c_download_complete_hook.sh --check-certificate=false --file-allocation=none --allow-overwrite=true --seed-ratio=0.0 --bt-tracker-interval=2 --enable-dht=false --enable-dht6=false --disable-ipv6=true --enable-peer-exchange=true --bt-enable-lpd=true --follow-torrent=mem --dir=/tmp/target --bt-tracker-connect-timeout=2 --bt-tracker-interval=5 --bt-tracker-timeout=10 --seed-time=999 "{{ image.url }}"
+  - name: link image file
+    file: src=/tmp/target/{{ image.torrent.filename }} dest=/tmp/{{ inventory_hostname }}.img state=link force=yes
+  - name: wait for download finished
+    wait_for: path=/tmp/aria2c_download_complete timeout=1800 delay=15
+  when: image.torrent != none

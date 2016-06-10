@@ -6,5 +6,5 @@
     port: 22
     search_regex: OpenSSH
     delay: 10
-    timeout: 400
+    timeout: 3600
     connect_timeout: 15

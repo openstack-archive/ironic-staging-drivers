@@ -31,6 +31,7 @@ import six
 import six.moves.urllib.parse as urlparse
 import yaml
 
+from ironic.common import bittorrent
 from ironic.common import dhcp_factory
 from ironic.common import exception
 from ironic.common.glance_service import service_utils
@@ -93,6 +94,8 @@ CONF.register_opts(ansible_opts, group='ansible')
 CONF.import_opt('default_ephemeral_format',
                 'ironic.drivers.modules.iscsi_deploy',
                 group='pxe')
+CONF.import_opt('client_seed_time',
+                'ironic.common.bittorrent', group='bittorrent')
 
 LOG = log.getLogger(__name__)
 
@@ -157,7 +160,14 @@ def build_instance_info_for_deploy(task):
         swift_temp_url = glance.swift_temp_url(image_info)
         LOG.debug('Got image info: %(info)s for node %(node)s.',
                   {'info': image_info, 'node': node.uuid})
-        instance_info['image_url'] = swift_temp_url
+        if image_info['properties'].get('use_torrent'):
+            instance_info['image_url'] = bittorrent.cache_image(image_source, task.context)
+            instance_info['torrent'] = {}
+            instance_info['torrent']['seed_time'] = CONF.bittorrent.client_seed_time
+            instance_info['torrent']['filename'] = image_source
+        else:
+            swift_temp_url = glance.swift_temp_url(image_info)
+            instance_info['image_url'] = swift_temp_url
         instance_info['image_checksum'] = image_info['checksum']
         instance_info['image_disk_format'] = image_info['disk_format']
         instance_info['image_container_format'] = (
@@ -339,6 +349,7 @@ def _prepare_variables(task):
     i_info = node.instance_info
     variables = {
         'url': i_info['image_url'],
+        'torrent': i_info.get('torrent'),
         'mem_req': _calculate_memory_req(task),
         'checksum': i_info.get('image_checksum'),
         'disk_format': i_info.get('image_disk_format'),
