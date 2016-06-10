@@ -1,0 +1,16 @@
+{
+  "family": {
+    "redhat": {
+      "qemu-utils": "qemu-img"
+    }
+  },
+  "family": {
+    "debian": {
+      "dhcp-client": "isc-dhcp-client"
+      }
+  },
+  "default": {
+    "dhcp-client": "dhcp-client",
+    "qemu-utils": "qemu-utils"
+  }
+}
