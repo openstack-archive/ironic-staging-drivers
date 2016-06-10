@@ -1,0 +1,28 @@
+#!/bin/bash
+
+if [ "${DIB_DEBUG_TRACE:-0}" -gt 0 ]; then
+    set -x
+fi
+set -eu
+set -o pipefail
+
+SCRIPTDIR=$(dirname $0)
+
+install -D -g root -o root -m 0775 ${SCRIPTDIR}/ironic-callback /usr/local/bin/ironic-callback
+
+case "$DIB_INIT_SYSTEM" in
+    upstart)
+        install -D -g root -o root -m 0755 ${SCRIPTDIR}/ironic-callback.conf /etc/init/ironic-callback.conf
+        ;;
+    systemd)
+        install -D -g root -o root -m 0755 ${SCRIPTDIR}/ironic-callback.service /usr/lib/systemd/system/ironic-callback.service
+        ;;
+    sysv)
+        install -D -g root -o root -m 0755 ${SCRIPTDIR}/ironic-callback.init /etc/init.d/ironic-callback.init
+        update-rc.d ironic-callback.init defaults
+        ;;
+    *)
+        echo "Unsupported init system"
+        exit 1
+        ;;
+esac
