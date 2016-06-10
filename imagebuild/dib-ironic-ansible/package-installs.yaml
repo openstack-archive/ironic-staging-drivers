@@ -1,0 +1,8 @@
+dhcp-client:
+openssh-server:
+qemu-utils:
+parted:
+gdisk:
+util-linux:
+python-netifaces:
+python-requests:
