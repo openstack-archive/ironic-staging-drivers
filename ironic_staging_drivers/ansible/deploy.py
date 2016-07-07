@@ -87,6 +87,8 @@ ansible_opts = [
                 default=True,
                 help=_('Use callback request from ramdisk for start deploy or'
                        'cleaning.')),
+    cfg.ListOpt('torrent_trackers',
+               help=_('List of torrent trackers')),
 ]
 
 CONF.register_opts(ansible_opts, group='ansible')
@@ -162,6 +164,14 @@ def build_instance_info_for_deploy(task):
         instance_info['image_disk_format'] = image_info['disk_format']
         instance_info['image_container_format'] = (
             image_info['container_format'])
+        torrent_source = image_info['properties'].get('torrent')
+        if torrent_source:
+            if service_utils.is_glance_image(torrent_source):
+                image_info = glance.show(torrent_source)
+                torrent_source = glance.swift_temp_url(image_info)
+            instance_info['torrent'] = {}
+            instance_info['torrent']['url'] = torrent_source
+            instance_info['torrent']['trackers'] = CONF.ansible.torrent_trackers
     else:
         try:
             image_service.HttpImageService().validate_href(image_source)
@@ -349,6 +359,7 @@ def _prepare_variables(task):
     i_info = node.instance_info
     variables = {
         'url': i_info['image_url'],
+        'torrent': i_info.get('torrent'),
         'mem_req': _calculate_memory_req(task),
         'checksum': i_info.get('image_checksum'),
         'disk_format': i_info.get('image_disk_format'),
