@@ -13,7 +13,28 @@
     checksum: "md5:{{ image.checksum }}"
   async: 600
   poll: 15
-  when: "{{ image.disk_format == 'raw' }}"
+  when:
+    - image.torrent is none
+    - "{{ image.disk_format == 'raw' }}"
+- block:
+  - name: mkdir
+    file: path=/tmp/target state=directory mode=0755
+  - name: link to device
+    file: src={{ ironic_root_device }} dest=/tmp/target/image state=link
+  - name: download torrent file
+    get_url:
+     url: "{{ image.torrent.url }}"
+     dest: /tmp/image.torrent
+  - name: set webseed
+    script: set_webseed.py /tmp/image.torrent "{{ image.url }}"
+  - name: download
+    become: yes
+    command: aria2c --console-log-level=warn --check-certificate=false --file-allocation=none --allow-overwrite=true --seed-ratio=0.0 --bt-tracker-interval=2 --enable-dht=false --enable-dht6=false --disable-ipv6=true --enable-peer-exchange=true --bt-enable-lpd=true --follow-torrent=mem --dir=/tmp/target --bt-tracker-connect-timeout=2 --bt-tracker-timeout=5 --seed-time=0 --bt-tracker="{{ image.torrent.trackers }}" /tmp/image.torrent
+    async: 600
+    poll: 15
+  when:
+    - image.torrent != none
+    - image.disk_format == 'raw'
 
 - name: flush
   command: sync
