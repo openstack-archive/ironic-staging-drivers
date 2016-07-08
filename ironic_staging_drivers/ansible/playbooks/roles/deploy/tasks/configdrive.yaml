@@ -1,0 +1,37 @@
+- name: download configdrive data
+  get_url:
+    url: "{{ configdrive.location }}"
+    dest: /tmp/{{ inventory_hostname }}.gz.base64
+  async: 600
+  poll: 15
+  when: "{{ configdrive.type|default('') == 'url' }}"
+
+- block:
+  - name: copy configdrive file to node
+    copy:
+      src: "{{ configdrive.location }}"
+      dest: /tmp/{{ inventory_hostname }}.gz.base64
+  - name: remove configdrive from conductor
+    delegate_to: conductor
+    file:
+      path: "{{ configdrive.location }}"
+      state: absent
+  when: "{{ configdrive.type|default('') == 'file' }}"
+
+- name: unpack configdrive
+  shell: cat /tmp/{{ inventory_hostname }}.gz.base64 | base64 --decode | gunzip > /tmp/{{ inventory_hostname }}.cndrive
+
+- name: prepare config drive partition
+  become: yes
+  script: partition_configdrive.sh {{ ironic_root_device }}
+  register: configdrive_partition_output
+
+- name: test the output of configdrive partitioner
+  assert:
+    that:
+      - "{{ (configdrive_partition_output.stdout_lines | last).split() | length == 2 }}"
+      - "{{ (configdrive_partition_output.stdout_lines | last).split() | first == 'configdrive' }}"
+
+- name: write configdrive
+  become: yes
+  command: dd if=/tmp/{{ inventory_hostname }}.cndrive of={{ (configdrive_partition_output.stdout_lines | last).split() | last }} bs=64K oflag=direct
