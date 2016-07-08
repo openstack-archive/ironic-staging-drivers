@@ -1,0 +1,22 @@
+---
+features:
+  - |
+    Added Ansible-deploy driver.
+
+    Supported features of Agent-based deploy drivers
+
+    * Network separation
+    * Whole disk images
+    * Partition images with localboot
+    * Cleaning, both automated and manual with cleaning steps
+    * Configdrive partition, for both whole disk and partition images.
+
+    Main known shortcomings in comparison with IPA-based drivers
+
+    * Is not asynchronous
+    * Clean steps can not be aborted
+    * Does not support UEFI/secure/trusted boot (support is planned)
+    * Does not support root_device_hints (support is planned)
+    * Does not honor partition type capability for partiton images
+      (always msdos, gpt support is planned)
+    * Does not support partition images with netboot

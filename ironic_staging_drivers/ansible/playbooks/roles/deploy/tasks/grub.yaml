@@ -1,0 +1,3 @@
+- name: configure bootloader
+  become: yes
+  script: install_grub.sh {{ ironic_root_device }} {{ ironic_image_target }}
