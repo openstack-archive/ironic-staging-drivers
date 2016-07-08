@@ -1,0 +1,36 @@
+- name: get disk device name
+  shell: lsblk -rido NAME | head -n 2 | tail -n 1
+  register: device_name
+
+- include: configdrive.yaml
+  when: configdrive is defined
+
+- name: erase partition table
+  become: yes
+  command: dd if=/dev/zero of=/dev/{{ device_name.stdout}} bs=512 count=36
+  when: "{{ preserve_ephemeral|default('no') != 'yes'}}"
+
+- name: get parted args
+  command: parted_args.py /dev/{{ device_name.stdout}} {{ root_mb }} {{ swap_mb|default('0') }} {{ ephemeral_mb|default('0') }} {{ configdrive_size.stdout|default('0') }} {{ inventory_file }}
+  register: parted_args_script
+  connection: local
+
+- name: run parted
+  become: yes
+  command: parted {{ parted_args_script.stdout }}
+  when: "{{ preserve_ephemeral|default('no') != 'yes'}}"
+
+- name: format ephemeral partition
+  become: yes
+  command: mkfs -t {{ ephemeral_format }} -L ephemeral0 {{ ephemeral_part }}
+  when: "{{ ephemeral_mb is defined and preserve_ephemeral == 'no' }}"
+
+- name: make swap
+  become: yes
+  command: mkswap -L swap1 {{ swap_part }}
+  when: swap_mb is defined
+
+- name: write configdrive
+  become: yes
+  command: dd if=/tmp/{{ inventory_hostname }}.cndrive of={{ configdrive_part }}
+  when: configdrive is defined

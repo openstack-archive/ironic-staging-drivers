@@ -1,0 +1,23 @@
+- name: get disk device name
+  shell: lsblk -rido NAME | head -n 2 | tail -n 1
+  register: device_name
+
+- name: convert and write
+  become: yes
+  command: qemu-img convert -t directsync -O host_device /tmp/{{ inventory_hostname }}.img /dev/{{ device_name.stdout }}
+  async: 400
+  poll: 10
+  when: "{{ image_disk_format != 'raw' }}"
+
+- name: stream to target
+  become: yes
+  stream_url:
+    url: "{{ image_url }}"
+    dest: /dev/{{ device_name.stdout }}
+    checksum: "md5:{{ image_checksum }}"
+  async: 600
+  poll: 15
+  when: "{{ image_disk_format == 'raw' }}"
+
+- name: flush
+  command: sync
