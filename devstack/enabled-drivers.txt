@@ -9,3 +9,6 @@ fake_libvirt_fake
 fake_amt_fake
 pxe_amt_iscsi
 pxe_amt_agent
+pxe_ssh_ansible
+pxe_libvirt_ansible
+pxe_ipmitool_ansible

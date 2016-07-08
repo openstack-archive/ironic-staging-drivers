@@ -1,0 +1,6 @@
+- include: wipefs.yaml
+  tags:
+    - wipefs
+- include: shred.yaml
+  tags:
+    - shred
