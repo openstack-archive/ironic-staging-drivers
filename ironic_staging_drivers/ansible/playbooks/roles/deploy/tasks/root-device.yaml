@@ -1,0 +1,4 @@
+- set_fact:
+    ironic_root_device: /dev/{{ ansible_devices.keys()[0] }}
+- set_fact:
+    ironic_image_target: "{{ ironic_root_device }}"
