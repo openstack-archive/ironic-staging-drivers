@@ -1,0 +1,4 @@
+- name: wipe partition metadata
+  become: yes
+  command: sgdisk -Z /dev/{{ item }}
+  with_items: "{{ ansible_devices }}"
