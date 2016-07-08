@@ -1,0 +1,7 @@
+- name: erase_devices
+  priority: 0
+  interface: deploy
+  abortable: true
+  argsinfo: null
+  tags:
+    - wipefs
