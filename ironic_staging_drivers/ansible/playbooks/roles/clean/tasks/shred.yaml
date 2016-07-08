@@ -1,0 +1,6 @@
+- name: clean block devices
+  become: yes
+  command: shred -f -z /dev/{{ item }}
+  async: 3600
+  poll: 30
+  with_items: "{{ ansible_devices }}"

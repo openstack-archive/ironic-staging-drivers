@@ -1,0 +1,10 @@
+- name: waiting for node
+  become: false
+  delegate_to: conductor
+  wait_for:
+    host: "{{ ansible_ssh_host }}"
+    port: 22
+    search_regex: OpenSSH
+    delay: 10
+    timeout: 400
+    connect_timeout: 15

@@ -1,0 +1,11 @@
+- name: fail if not enough memory to store downloaded image
+  fail:
+    msg: "The image size is too big, no free memory available"
+  when: "{{ ansible_memfree_mb }} < {{ image.mem_req }}"
+- name: download image with checksum validation
+  get_url:
+    url: "{{ image.url }}"
+    dest: /tmp/{{ inventory_hostname }}.img
+    checksum: "{{ image.checksum|default(omit) }}"
+  async: 600
+  poll: 15
