@@ -1,0 +1,11 @@
+- name: erase_devices
+  priority: 0
+  interface: deploy
+  abortable: true
+  args:
+    tags:
+      required: true
+      description: list of playbook tags used to erase disk devices
+      value:
+        - wipefs
+        - shred
