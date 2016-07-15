@@ -1,0 +1,11 @@
+- name: add custom facts
+  become: yes
+  gather_dmi_memory_interfaces:
+
+- name: gather standard ansible facts
+  become: yes
+  setup:
+
+- name: modify disks format and guess root disk
+  gather_block_devices:
+    devices: "{{ ansible_devices }}"

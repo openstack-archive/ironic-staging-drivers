@@ -1,0 +1,7 @@
+- name: send inspection data to inspector
+  uri:
+    url: "{{ inspector_url }}"
+    method: POST
+    status_code: 200
+    body_format: json
+    body: "{{ inventory }}"

@@ -109,7 +109,8 @@ LOG = log.getLogger(__name__)
 
 DEFAULT_PLAYBOOKS = {
     'deploy': 'deploy.yaml',
-    'clean': 'clean.yaml'
+    'clean': 'clean.yaml',
+    'inspect': 'inspect.yaml'
 }
 DEFAULT_CLEAN_STEPS = 'clean_steps.yaml'
 
@@ -487,6 +488,25 @@ def _deploy(task, node_address):
     task.driver.boot.clean_up_ramdisk(task)
 
 
+def _inspect(task, node_address):
+    """Internal function for node introspection"""
+
+    LOG.debug('Inspecting node %s' % node_address)
+
+    playbook, user, key = _parse_ansible_driver_info(task.node, 'inspect')
+
+    if not playbook:
+        raise exception.IronicException(
+            message=_('Failed to set ansible playbook for inspection.'))
+
+    extra_vars = {'inspector_url': CONF.inspector.service_url}
+    extra_vars = _prepare_extra_vars([(node_address, node_address, user)],
+                                     extra_vars)
+
+    _run_playbook(playbook, extra_vars, key)
+    LOG.info(_LI('Ansible complete inspection on node %s'), node_address)
+
+
 class AnsibleDeploy(base.DeployInterface):
     """Interface for deploy-related actions."""
 
@@ -741,6 +761,21 @@ class AnsibleDeploy(base.DeployInterface):
                 LOG.exception(error)
                 manager_utils.cleaning_error_handler(task, error)
 
+        elif node.provision_state == states.INSPECTING:
+            LOG.debug('Node %s just booted to start introspection.',
+                      node.uuid)
+            self._upgrade_lock(task, purpose='inspect')
+            try:
+                _inspect(task, address)
+            except Exception as e:
+                error = _('Inspection failed for node %(node)s: '
+                          'Error: %(exc)s') % {'node': node.uuid,
+                                               'exc': six.text_type(e)}
+                LOG.exception(error)
+                self._set_failed_state(task, error)
+
+            else:
+                LOG.info(_LI('Deployment to node %s done'), node.uuid)
         else:
             LOG.warning(_LW('Call back from %(node)s in invalid provision '
                             'state %(state)s'),

@@ -1,0 +1,9 @@
+- name: get all interfaces
+    set_fact:
+      interfaces: "{{interfaces|default([]) + [hostvars[inventory_hostname]['ansible_' + item]]}}"
+    with_items: ansible_interfaces
+  - name: filter interfaces with real devices
+    set_fact:
+      fdi_interfaces: "{{fdi_interfaces|default([]) + [{'name': item.device, 'ipv4_address': item.ipv4.address, 'mac_address':item.macaddress }] }}"
+    with_items: "{{interfaces}}"
+    when: item.pciid is defined

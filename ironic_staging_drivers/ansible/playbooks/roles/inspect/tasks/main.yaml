@@ -1,0 +1,6 @@
+- include: gather_inspection_data.yaml
+
+- include: filter_device_interfaces.yaml
+- include: format_inspection_data.yaml
+
+- include: send_introspection_data.yaml

@@ -1,0 +1,17 @@
+- name: set all facts in inspector format
+  set_fact:
+    inventory: { "inventory": {
+                   "interfaces":  "{{ fdi_interfaces }}",
+                   "memory": {
+                     "physical_mb": "{{ custom_facts.memory_mb }}",
+                     "total": "{{ ansible_memory_mb.real.total }}"
+                   },
+                   "cpu": {
+                     "architecture": "{{ ansible_architecture }}",
+                     "count": "{{ ansible_processor_count }}",
+                   },
+                   "disks": "{{ gbd_block_devices }}",
+                 },
+                   "boot_interface": "{{ custom_facts.boot_interface }}",
+                   "root_disk": "{{ gbd_root_device }}"
+               }
