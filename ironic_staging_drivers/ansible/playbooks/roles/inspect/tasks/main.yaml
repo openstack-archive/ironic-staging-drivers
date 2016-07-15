@@ -1,0 +1,38 @@
+- name: gather custom facts
+  become: yes
+  inspect_facts:
+
+- name: ansible facts
+  become: yes
+  setup:
+
+- name: guess root disk
+  guess_root_disk:
+    devices: "{{ ansible_devices }}"
+
+
+- name: set all facts
+  set_fact:
+    inventory: { "inventory": {
+                   "interfaces":  "{{ custom_facts.interfaces }}",
+                   "memory": {
+                     "physical_mb": "{{ custom_facts.memory_mb }}",
+                     "total": "{{ ansible_memory_mb.real.total }}"
+                   },
+                   "cpu": {
+                     "architecture": "{{ ansible_architecture }}",
+                     "count": "{{ ansible_processor_count }}",
+                   },
+                   "disks": "{{ block_devices }}",
+                 },
+                 "boot_interface": "{{ custom_facts.boot_interface }}",
+                 "root_disk": "{{ root_device }}"
+                 }
+
+- name: send inspection data to inspector
+  uri:
+    url: "{{ inspector_url }}"
+    method: POST
+    status_code: 200
+    body_format: json
+    body: "{{ inventory }}"
