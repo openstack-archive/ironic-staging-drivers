@@ -33,11 +33,14 @@ import yaml
 
 from ironic.common import dhcp_factory
 from ironic.common import exception
+from ironic.common.glance_service import service_utils
 from ironic.common.i18n import _
 from ironic.common.i18n import _LE
 from ironic.common.i18n import _LI
 from ironic.common.i18n import _LW
+from ironic.common import image_service
 from ironic.common import images
+from ironic.common import keystone
 from ironic.common import states
 from ironic.common import utils
 from ironic.conductor import rpcapi
@@ -99,6 +102,11 @@ ansible_opts = [
                        'cleaning. Disable it when using custom ramdisk '
                        'without callback script. '
                        'When callback is disabled, Neutron is mandatory.')),
+    cfg.BoolOpt('glance_direct_download',
+                default=False,
+                help=_('Whether to use Swift TempURLs for user images '
+                       '(default) or download user image directly '
+                       'from Glance API.')),
 ]
 
 CONF.register_opts(ansible_opts, group='ansible')
@@ -350,6 +358,17 @@ def _prepare_variables(task):
         # where API reports checksum as MD5 always.
         if ':' not in checksum:
             image['checksum'] = 'md5:%s' % checksum
+    if (CONF.ansible.glance_direct_download and
+        service_utils.is_glance_image(image['source'])):
+            glance = image_service.GlanceImageService(version=2,
+                                                      context=task.context)
+            image_info = glance.show(image['source'])
+            session = keystone.get_session('glance')
+            image['token'] = keystone.get_admin_auth_token(session)
+            glance_api_url = keystone.get_service_url(session,
+                                                      service_type='image')
+            image['url'] = urlparse.urljoin(glance_api_url,
+                                            image_info['file'])
     variables = {'image': image}
     configdrive = i_info.get('configdrive')
     if configdrive:
