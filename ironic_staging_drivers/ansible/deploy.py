@@ -33,6 +33,7 @@ import yaml
 
 from ironic.common import dhcp_factory
 from ironic.common import exception
+from ironic.common.glance_service import service_utils
 from ironic.common.i18n import _
 from ironic.common.i18n import _LE
 from ironic.common.i18n import _LI
@@ -46,6 +47,8 @@ from ironic.conf import CONF
 from ironic.drivers import base
 from ironic.drivers.modules import agent_base_vendor as agent_base
 from ironic.drivers.modules import deploy_utils
+
+from ironic_staging_drivers.ansible import ironic_domain
 
 
 ansible_opts = [
@@ -98,6 +101,11 @@ ansible_opts = [
                        'cleaning. Disable it when using custom ramdisk '
                        'without callback script. '
                        'When callback is disabled, Neutron is mandatory.')),
+    cfg.BoolOpt('use_swift_tempurl',
+                default=True,
+                help=_('Whether to use Swift TempURLs for user images '
+                       '(default) or download user image directly '
+                       'from Glance API.')),
 ]
 
 CONF.register_opts(ansible_opts, group='ansible')
@@ -352,6 +360,9 @@ def _prepare_variables(task):
         # where API reports checksum as MD5 always.
         if ':' not in checksum:
             image['checksum'] = 'md5:%s' % checksum
+    if _use_trusts(task):
+            LOG.debug("Generating trusted token for image %s", image['source'])
+            image['token'] = ironic_domain.get_trusted_token(task)
     variables = {'image': image}
     configdrive = i_info.get('configdrive')
     if configdrive:
@@ -443,6 +454,12 @@ def _get_clean_steps(node, interface=None, override_priorities=None):
     return steps
 
 
+def _use_trusts(task):
+    return (not CONF.ansible.use_swift_tempurl and
+            service_utils.is_glance_image(
+                task.node.instance_info['image_source']))
+
+
 class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
     """Interface for deploy-related actions."""
 
@@ -496,7 +513,10 @@ class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
 
         LOG.debug('Starting deploy on node %s', node.uuid)
         # any caller should manage exceptions raised from here
-        _run_playbook(playbook, extra_vars, key, notags=notags)
+        try:
+            _run_playbook(playbook, extra_vars, key, notags=notags)
+        finally:
+            ironic_domain.delete_domain_user(task)
 
     @METRICS.timer('AnsibleDeploy.deploy')
     @task_manager.require_exclusive_lock
@@ -533,6 +553,10 @@ class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
     def prepare(self, task):
         """Prepare the deployment environment for this node."""
         node = task.node
+        # Generate trust
+        with_trust = _use_trusts(task)
+        if with_trust:
+            ironic_domain.create_trust(task)
         # TODO(pas-ha) investigate takeover scenario
         if node.provision_state == states.DEPLOYING:
             # adding network-driver dependent provisioning ports
@@ -540,7 +564,7 @@ class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
             task.driver.network.add_provisioning_network(task)
         if node.provision_state not in [states.ACTIVE, states.ADOPTING]:
             node.instance_info = deploy_utils.build_instance_info_for_deploy(
-                task)
+                task, not with_trust)
             node.save()
             boot_opt = deploy_utils.build_agent_options(node)
             task.driver.boot.prepare_ramdisk(task, boot_opt)
