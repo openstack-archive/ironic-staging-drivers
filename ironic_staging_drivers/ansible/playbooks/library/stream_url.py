@@ -24,13 +24,13 @@ DEFAULT_CHUNK_SIZE = 1024 * 1024  # 1MB
 
 class StreamingDownloader(object):
 
-    def __init__(self, url, chunksize, hash_algo=None):
+    def __init__(self, url, chunksize, hash_algo=None, headers=None):
         if hash_algo is not None:
             self.hasher = hashlib.new(hash_algo)
         else:
             self.hasher = None
         self.chunksize = chunksize
-        resp = requests.get(url, stream=True)
+        resp = requests.get(url, stream=True, headers=headers)
         if resp.status_code != 200:
             raise Exception('Invalid response code: %s' % resp.status_code)
 
@@ -47,8 +47,8 @@ class StreamingDownloader(object):
             return self.hasher.hexdigest()
 
 
-def stream_to_dest(url, dest, chunksize, hash_algo):
-    downloader = StreamingDownloader(url, chunksize, hash_algo)
+def stream_to_dest(url, dest, chunksize, hash_algo, headers):
+    downloader = StreamingDownloader(url, chunksize, hash_algo, headers)
 
     with open(dest, 'wb+') as f:
         for chunk in downloader:
@@ -64,13 +64,15 @@ def main():
             dest=dict(required=True, type='str'),
             checksum=dict(required=False, type='str', default=''),
             chunksize=dict(required=False, type='int',
-                           default=DEFAULT_CHUNK_SIZE)
+                           default=DEFAULT_CHUNK_SIZE),
+            headers=dict(required=False, type='dict', default={}, no_log=True)
         ))
 
     url = module.params['url']
     dest = module.params['dest']
     checksum = module.params['checksum']
     chunksize = module.params['chunksize']
+    headers = module.params['headers']
     if checksum == '':
         hash_algo, checksum = None, None
     else:
@@ -88,7 +90,7 @@ def main():
 
     try:
         actual_checksum = stream_to_dest(
-            url, dest, chunksize, hash_algo)
+            url, dest, chunksize, hash_algo, headers)
     except Exception as e:
         module.fail_json(msg=str(e))
     else:

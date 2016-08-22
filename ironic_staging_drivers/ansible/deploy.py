@@ -33,11 +33,14 @@ import yaml
 
 from ironic.common import dhcp_factory
 from ironic.common import exception
+from ironic.common.glance_service import service_utils
 from ironic.common.i18n import _
 from ironic.common.i18n import _LE
 from ironic.common.i18n import _LI
 from ironic.common.i18n import _LW
+from ironic.common import image_service
 from ironic.common import images
+from ironic.common import keystone
 from ironic.common import states
 from ironic.common import utils
 from ironic.conductor import task_manager
@@ -46,6 +49,8 @@ from ironic.conf import CONF
 from ironic.drivers import base
 from ironic.drivers.modules import agent_base_vendor as agent_base
 from ironic.drivers.modules import deploy_utils
+
+from ironic_staging_drivers.ansible import ironic_trusts
 
 
 ansible_opts = [
@@ -98,6 +103,11 @@ ansible_opts = [
                        'cleaning. Disable it when using custom ramdisk '
                        'without callback script. '
                        'When callback is disabled, Neutron is mandatory.')),
+    cfg.BoolOpt('glance_direct_download',
+                default=False,
+                help=_('Whether to use Swift TempURLs for user images '
+                       '(default) or download user image directly '
+                       'from Glance API.')),
 ]
 
 CONF.register_opts(ansible_opts, group='ansible')
@@ -352,6 +362,16 @@ def _prepare_variables(task):
         # where API reports checksum as MD5 always.
         if ':' not in checksum:
             image['checksum'] = 'md5:%s' % checksum
+    if _use_trusts(task):
+            glance = image_service.GlanceImageService(version=2,
+                                                      context=task.context)
+            image_info = glance.show(image['source'])
+            session = keystone.get_session('glance')
+            adapter = keystone.get_adapter('glance', session=session)
+            glance_api_url = adapter.get_endpoint()
+            image['url'] = glance_api_url + image_info['file']
+            LOG.debug("Generating trusted token for image %s", image['source'])
+            image['token'] = ironic_trusts.get_trusted_token(task)
     variables = {'image': image}
     configdrive = i_info.get('configdrive')
     if configdrive:
@@ -443,6 +463,12 @@ def _get_clean_steps(node, interface=None, override_priorities=None):
     return steps
 
 
+def _use_trusts(task):
+    return (CONF.ansible.glance_direct_download and
+            service_utils.is_glance_image(
+                task.node.instance_info['image_source']))
+
+
 class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
     """Interface for deploy-related actions."""
 
@@ -496,7 +522,10 @@ class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
 
         LOG.debug('Starting deploy on node %s', node.uuid)
         # any caller should manage exceptions raised from here
-        _run_playbook(playbook, extra_vars, key, notags=notags)
+        try:
+            _run_playbook(playbook, extra_vars, key, notags=notags)
+        finally:
+            ironic_trusts.delete_domain_user(task)
 
     @METRICS.timer('AnsibleDeploy.deploy')
     @task_manager.require_exclusive_lock
@@ -533,6 +562,9 @@ class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
     def prepare(self, task):
         """Prepare the deployment environment for this node."""
         node = task.node
+        # Generate trust
+        if _use_trusts(task):
+            ironic_trusts.create_trust(task)
         # TODO(pas-ha) investigate takeover scenario
         if node.provision_state == states.DEPLOYING:
             # adding network-driver dependent provisioning ports
