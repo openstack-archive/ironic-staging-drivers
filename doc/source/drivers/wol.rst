@@ -114,7 +114,7 @@ Additional requirements
 
 * BIOS must try next boot device if PXE boot failed
 
-* Cleaning should be disabled, see :ref:`cleaning`
+* Cleaning should be disabled, see [3]_.
 
 * Node should be powered off before start of deploy
 
@@ -126,3 +126,4 @@ References
 ==========
 .. [1] Wake-On-Lan - https://en.wikipedia.org/wiki/Wake-on-LAN
 .. [2] Magic packet - https://en.wikipedia.org/wiki/Wake-on-LAN#Sending_the_magic_packet
+.. [3] Ironic node cleaning - http://docs.openstack.org/developer/ironic/deploy/cleaning.html
