@@ -47,3 +47,15 @@ if not iboot:
 # external library has been mocked
 if 'ironic.drivers.modules.iboot' in sys.modules:
     six.moves.reload_module(sys.modules['ironic.drivers.modules.iboot'])
+
+# attempt to load the external 'libvirt' library, which is required by
+# the optional drivers.modules.libvirt module
+libvirt = importutils.try_import('libvirt')
+if not libvirt:
+    lv = mock.MagicMock(spec_set=mock_specs.LIBVIRT_SPEC)
+    sys.modules['libvirt'] = lv
+
+# if anything has loaded the libvirt driver yet, reload it now that the
+# external library has been mocked
+if 'ironic.drivers.modules.libvirt' in sys.modules:
+    six.moves.reload_module(sys.modules['ironic.drivers.modules.libvirt'])

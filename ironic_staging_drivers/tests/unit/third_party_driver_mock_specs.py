@@ -20,3 +20,12 @@ when needing to mock those third party modules"""
 IBOOT_SPEC = (
     'iBootInterface',
 )
+
+#libvirt
+LIBVIRT_SPEC = (
+    'open',
+    'openAuth',
+    'libvirtError',
+    'VIR_CRED_AUTHNAME',
+    'VIR_CRED_PASSPHRASE',
+)
