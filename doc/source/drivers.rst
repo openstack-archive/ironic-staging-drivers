@@ -12,3 +12,4 @@ Available drivers
      drivers/iboot
      drivers/libvirt
      drivers/intel_nm
+     drivers/ansible
