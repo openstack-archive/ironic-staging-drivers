@@ -45,5 +45,6 @@ if not iboot:
 
 # if anything has loaded the iboot driver yet, reload it now that the
 # external library has been mocked
-if 'ironic.drivers.modules.iboot' in sys.modules:
-    six.moves.reload_module(sys.modules['ironic.drivers.modules.iboot'])
+if 'ironic_staging_drivers.iboot.power' in sys.modules:
+    six.moves.reload_module(
+        sys.modules['ironic_staging_drivers.iboot.power'])
