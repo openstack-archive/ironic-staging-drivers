@@ -10,3 +10,4 @@ Available drivers
      drivers/wol
      drivers/amt
      drivers/iboot
+     drivers/intel_nm
