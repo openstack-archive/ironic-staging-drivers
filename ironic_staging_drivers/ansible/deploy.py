@@ -19,6 +19,7 @@ import json
 import os
 import shlex
 
+import futurist
 from ironic_lib import metrics_utils
 from ironic_lib import utils as irlib_utils
 from oslo_concurrency import processutils
@@ -452,6 +453,13 @@ class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
         # NOTE(pas-ha) overriding agent creation as we won't be
         # communicating with it, only processing heartbeats
         self._client = None
+        # NOTE(pas-ha) relying on the fact that driver interfaces are
+        # singletons
+        self._executor = futurist.GreenThreadPoolExecutor()
+        self._task_pool = {}
+
+    def __del__(self):
+        self._executor.shutdown()
 
     def get_properties(self):
         """Return the properties of the interface."""
@@ -482,7 +490,7 @@ class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
         # validate root device hints, proper exceptions are raised from there
         _parse_root_device_hints(node)
 
-    def _ansible_deploy(self, task, node_address):
+    def _ansible_deploy(self, task, node_address, async=True):
         """Internal function for deployment to a node."""
         notags = ['wait'] if CONF.ansible.use_ramdisk_callback else []
         node = task.node
@@ -496,8 +504,12 @@ class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
         extra_vars = _prepare_extra_vars(node_list, variables=variables)
 
         LOG.debug('Starting deploy on node %s', node.uuid)
-        # any caller should manage exceptions raised from here
-        _run_playbook(playbook, extra_vars, key, notags=notags)
+        if not async:
+            # any caller should manage exceptions raised from here
+            _run_playbook(playbook, extra_vars, key, notags=notags)
+        else:
+            self._task_pool[node.uuid] = self._executor.submit(
+                _run_playbook, playbook, extra_vars, key, notags=notags)
 
     @METRICS.timer('AnsibleDeploy.deploy')
     @task_manager.require_exclusive_lock
@@ -510,7 +522,7 @@ class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
         node = task.node
         ip_addr = _get_node_ip_dhcp(task)
         try:
-            self._ansible_deploy(task, ip_addr)
+            self._ansible_deploy(task, ip_addr, async=False)
         except Exception as e:
             error = _('Deploy failed for node %(node)s: '
                       'Error: %(exc)s') % {'node': node.uuid,
@@ -668,6 +680,15 @@ class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
         task.driver.boot.clean_up_ramdisk(task)
         task.driver.network.remove_cleaning_network(task)
 
+    @METRICS.timer('AnsibleDeploy.deploy_has_started')
+    def deploy_has_started(self, task):
+        return task.node.uuid in self._task_pool
+
+    @METRICS.timer('AnsibleDeploy.deploy_is_done')
+    def deploy_is_done(self, task):
+        ft = self._task_pool[task.node.uuid]
+        return ft.done()
+
     @METRICS.timer('AnsibleDeploy.continue_deploy')
     def continue_deploy(self, task):
         # NOTE(pas-ha) the lock should be already upgraded in heartbeat,
@@ -683,6 +704,20 @@ class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
     @METRICS.timer('AnsibleDeploy.reboot_to_instance')
     def reboot_to_instance(self, task):
         node = task.node
+        if node.uuid in self._task_pool:
+            task.process_event('resume')
+            ft = self._task_pool.pop(node.uuid)
+            ft_exc = ft.exception()
+
+            if ft_exc:
+                error = _('Deploy failed for node %(node)s: '
+                          'Error: %(exc)s') % {
+                    'node': node.uuid, 'exc': six.text_type(ft_exc)}
+                LOG.exception(error)
+                deploy_utils.set_failed_state(
+                    task, error, collect_logs=bool(self._client))
+                return
+
         LOG.info(_LI('Ansible complete deploy on node %s'), node.uuid)
 
         LOG.debug('Rebooting node %s to instance', node.uuid)
