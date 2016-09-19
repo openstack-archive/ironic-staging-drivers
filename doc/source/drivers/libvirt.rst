@@ -30,7 +30,9 @@ Setting up the environment
 #. Install ironic-staging-drivers
 #. Install ``libvirt-python``
 
-   * When installing from PyPI, you'd need ``libvirt-dev`` package
+   * When installing from PyPI, you'd need development version of
+     ``libvirt`` package from your distribution
+     (e.g. ``libvirt-dev`` in Ubuntu, ``libvirt-devel`` in Fedora)
      and all the usual Python packages required to compile C-extensions
      in your system
      (on DevStack, those are already installed when nova-compute is enabled).
