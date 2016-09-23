@@ -1,17 +1,18 @@
 - include: root-device.yaml
 
 - include: parted.yaml
-  tags:
-  - parted
+  when: "{{ ironic.image.type | default('whole-disk-image') == 'partition' }}"
 
 - include: download.yaml
-  when: "{{ image.disk_format != 'raw' }}"
+  when: "{{ ironic.image.disk_format != 'raw' }}"
 
 - include: write.yaml
 
 - include: configdrive.yaml
-  when: configdrive is defined
+  when: ironic.configdrive is defined
 
 - include: grub.yaml
-  tags:
-  - parted
+  when: "{{ ironic.image.type | default('whole-disk-image') == 'partition' }}"
+
+- name: flush
+  command: sync

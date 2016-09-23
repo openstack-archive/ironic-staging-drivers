@@ -7,5 +7,5 @@
         ansible_ssh_host: "{{ item.ip }}"
         ansible_ssh_user: "{{ item.user }}"
         ironic_extra: "{{ item.extra | default({}) }}"
-      with_items: "{{ ironic_nodes }}"
+      with_items: "{{ ironic.nodes }}"
       tags: always
