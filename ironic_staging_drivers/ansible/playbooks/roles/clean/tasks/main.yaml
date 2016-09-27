@@ -1,0 +1,6 @@
+- include: zap.yaml
+  tags:
+    - zap
+- include: shred.yaml
+  tags:
+    - shred
