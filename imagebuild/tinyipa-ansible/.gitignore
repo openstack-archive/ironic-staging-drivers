@@ -1,0 +1,4 @@
+rebuild/
+tinyipa*ansible.gz
+build_files/cache
+tinyipa*.vmlinuz
