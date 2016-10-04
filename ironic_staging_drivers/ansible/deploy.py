@@ -19,11 +19,11 @@ import json
 import os
 import shlex
 
+from ironic_lib import metrics_utils
 from ironic_lib import utils as irlib_utils
 from oslo_concurrency import processutils
 from oslo_config import cfg
 from oslo_log import log
-from oslo_utils import excutils
 from oslo_utils import strutils
 from oslo_utils import units
 import retrying
@@ -33,12 +33,10 @@ import yaml
 
 from ironic.common import dhcp_factory
 from ironic.common import exception
-from ironic.common.glance_service import service_utils
 from ironic.common.i18n import _
 from ironic.common.i18n import _LE
 from ironic.common.i18n import _LI
 from ironic.common.i18n import _LW
-from ironic.common import image_service
 from ironic.common import images
 from ironic.common import states
 from ironic.common import utils
@@ -47,6 +45,7 @@ from ironic.conductor import task_manager
 from ironic.conductor import utils as manager_utils
 from ironic.conf import CONF
 from ironic.drivers import base
+from ironic.drivers.modules import agent_base_vendor as agent_base
 from ironic.drivers.modules import deploy_utils
 
 
@@ -106,6 +105,7 @@ CONF.register_opts(ansible_opts, group='ansible')
 
 LOG = log.getLogger(__name__)
 
+METRICS = metrics_utils.get_metrics_logger(__name__)
 
 DEFAULT_PLAYBOOKS = {
     'deploy': 'deploy.yaml',
@@ -137,8 +137,6 @@ OPTIONAL_PROPERTIES = {
 }
 COMMON_PROPERTIES = OPTIONAL_PROPERTIES
 
-DISK_LAYOUT_PARAMS = ('root_gb', 'swap_mb', 'ephemeral_gb')
-
 INVENTORY_FILE = os.path.join(CONF.ansible.playbooks_path, 'inventory')
 
 
@@ -160,78 +158,28 @@ def _get_configdrive_path(basename):
     return os.path.join(CONF.tempdir, basename + '.cndrive')
 
 
-# NOTE(yuriyz): this is a copy from agent driver
-def build_instance_info_for_deploy(task):
-    """Build instance_info necessary for deploying to a node."""
-    node = task.node
-    instance_info = node.instance_info
-
-    image_source = instance_info['image_source']
-    if service_utils.is_glance_image(image_source):
-        glance = image_service.GlanceImageService(version=2,
-                                                  context=task.context)
-        image_info = glance.show(image_source)
-        swift_temp_url = glance.swift_temp_url(image_info)
-        LOG.debug('Got image info: %(info)s for node %(node)s.',
-                  {'info': image_info, 'node': node.uuid})
-        instance_info['image_url'] = swift_temp_url
-        instance_info['image_checksum'] = image_info['checksum']
-        instance_info['image_disk_format'] = image_info['disk_format']
-    else:
-        try:
-            image_service.HttpImageService().validate_href(image_source)
-        except exception.ImageRefValidationFailed:
-            with excutils.save_and_reraise_exception():
-                LOG.error(_LE("Ansible deploy supports only HTTP(S) URLs as "
-                              "instance_info['image_source']. Either %s "
-                              "is not a valid HTTP(S) URL or "
-                              "is not reachable."), image_source)
-        instance_info['image_url'] = image_source
-
-    return instance_info
-
-
 def _get_node_ip(task):
-    api = dhcp_factory.DHCPFactory().provider
-    ip_addrs = api.get_ip_addresses(task)
-    if not ip_addrs:
-        raise exception.FailedToGetIPAddressOnPort(_(
-            "Failed to get IP address for any port on node %s.") %
-            task.node.uuid)
-    if len(ip_addrs) > 1:
-        error = _("Ansible driver does not support multiple IP addresses "
-                  "during deploy or cleaning")
-        raise exception.InstanceDeployFailure(reason=error)
+    node = task.node
+    if not CONF.ansible.use_ramdisk_callback:
+        node_address = node.driver_internal_info.get('ansible_cleaning_ip')
+        if not node_address:
+            api = dhcp_factory.DHCPFactory().provider
+            ip_addrs = api.get_ip_addresses(task)
+            if not ip_addrs:
+                raise exception.FailedToGetIPAddressOnPort(_(
+                    "Failed to get IP address for any port on node %s.") %
+                    node.uuid)
+            if len(ip_addrs) > 1:
+                error = _("Ansible driver does not support multiple IP "
+                          "addresses during deploy or cleaning")
+                raise exception.InstanceDeployFailure(reason=error)
 
-    return ip_addrs[0]
+            node_address = ip_addrs[0]
+    else:
+        callback_url = node.driver_internal_info.get('agent_url', '')
+        node_address = urlparse.urlparse(callback_url).netloc.split(':')[0]
 
-
-# some good code from agent
-def _reboot_and_finish_deploy(task):
-    wait = CONF.ansible.post_deploy_get_power_state_retry_interval * 1000
-    attempts = CONF.ansible.post_deploy_get_power_state_retries + 1
-
-    @retrying.retry(
-        stop_max_attempt_number=attempts,
-        retry_on_result=lambda state: state != states.POWER_OFF,
-        wait_fixed=wait
-    )
-    def _wait_until_powered_off(task):
-        return task.driver.power.get_power_state(task)
-
-    try:
-        _wait_until_powered_off(task)
-    except Exception as e:
-        LOG.warning(_LW('Failed to soft power off node %(node_uuid)s '
-                    'in at least %(timeout)d seconds. Error: %(error)s'),
-                    {'node_uuid': task.node.uuid,
-                     'timeout': (wait * (attempts - 1)) / 1000,
-                     'error': e})
-        manager_utils.node_power_action(task, states.POWER_OFF)
-
-    task.driver.network.remove_provisioning_network(task)
-    task.driver.network.configure_tenant_networks(task)
-    manager_utils.node_power_action(task, states.POWER_ON)
+    return node_address
 
 
 def _prepare_extra_vars(host_list, variables=None):
@@ -292,60 +240,32 @@ def _parse_partitioning_info(node):
     info = node.instance_info
     i_info = {}
 
-    i_info['root_gb'] = info.get('root_gb')
-    error_msg = _("'root_gb' is missing in node's instance_info")
-    deploy_utils.check_for_missing_params(i_info, error_msg)
-
-    i_info['swap_mb'] = info.get('swap_mb', 0)
-    i_info['ephemeral_gb'] = info.get('ephemeral_gb', 0)
-    err_msg_invalid = _("Cannot validate parameter for deploy. Invalid "
-                        "parameter %(param)s. Reason: %(reason)s")
-
-    for param in DISK_LAYOUT_PARAMS:
-        try:
-            i_info[param] = int(i_info[param])
-        except ValueError:
-            reason = _("%s is not an integer value") % i_info[param]
-            raise exception.InvalidParameterValue(err_msg_invalid %
-                                                  {'param': param,
-                                                   'reason': reason})
-    # convert to sizes expected by 'parted' Ansible module
-    root_mib = 1024 * i_info.pop('root_gb')
-    swap_mib = i_info.pop('swap_mb')
-    ephemeral_mib = 1024 * i_info.pop('ephemeral_gb')
-
     partitions = []
     root_partition = {'name': 'root',
-                      'size_mib': root_mib,
+                      'size_mib': info['root_mb'],
                       'boot': 'yes',
                       'swap': 'no'}
     partitions.append(root_partition)
 
-    if swap_mib:
+    swap_mb = info['swap_mb']
+    if swap_mb:
         swap_partition = {'name': 'swap',
-                          'size_mib': swap_mib,
+                          'size_mib': swap_mb,
                           'boot': 'no',
                           'swap': 'yes'}
         partitions.append(swap_partition)
 
-    if ephemeral_mib:
+    ephemeral_mb = info['ephemeral_mb']
+    if ephemeral_mb:
         ephemeral_partition = {'name': 'ephemeral',
-                               'size_mib': ephemeral_mib,
+                               'size_mib': ephemeral_mb,
                                'boot': 'no',
                                'swap': 'no'}
         partitions.append(ephemeral_partition)
-        i_info['ephemeral_format'] = info.get('ephemeral_format')
-        if not i_info['ephemeral_format']:
-            i_info['ephemeral_format'] = CONF.pxe.default_ephemeral_format
-        preserve_ephemeral = info.get('preserve_ephemeral', False)
-        try:
-            i_info['preserve_ephemeral'] = (
-                strutils.bool_from_string(preserve_ephemeral, strict=True))
-        except ValueError as e:
-            raise exception.InvalidParameterValue(
-                err_msg_invalid % {'param': 'preserve_ephemeral', 'reason': e})
+
+        i_info['ephemeral_format'] = info['ephemeral_format']
         i_info['preserve_ephemeral'] = (
-            'yes' if i_info['preserve_ephemeral'] else 'no')
+            'yes' if info['preserve_ephemeral'] else 'no')
 
     i_info['ironic_partitions'] = partitions
     return i_info
@@ -405,10 +325,10 @@ def _validate_clean_steps(steps, node_uuid):
                                             reason=msg)
 
 
-def _get_clean_steps(task, interface=None, override_priorities=None):
+def _get_clean_steps(node, interface=None, override_priorities=None):
     """Get cleaning steps."""
-    clean_steps_file = task.node.driver_info.get('ansible_clean_steps_config',
-                                                 DEFAULT_CLEAN_STEPS)
+    clean_steps_file = node.driver_info.get('ansible_clean_steps_config',
+                                            DEFAULT_CLEAN_STEPS)
     path = os.path.join(CONF.ansible.playbooks_path, clean_steps_file)
     try:
         with open(path) as f:
@@ -416,14 +336,14 @@ def _get_clean_steps(task, interface=None, override_priorities=None):
     except Exception as e:
         msg = _('Failed to load clean steps from file '
                 '%(file)s: %(exc)s') % {'file': path, 'exc': e}
-        raise exception.NodeCleaningFailure(node=task.node.uuid, reason=msg)
+        raise exception.NodeCleaningFailure(node=node.uuid, reason=msg)
 
-    _validate_clean_steps(internal_steps, task.node.uuid)
+    _validate_clean_steps(internal_steps, node.uuid)
 
     steps = []
     override = override_priorities or {}
     for params in internal_steps:
-        name = params['name']
+        name = params.get('name', 'unnamed')
         clean_if = params['interface']
         if interface is not None and interface != clean_if:
             continue
@@ -447,7 +367,8 @@ def _get_clean_steps(task, interface=None, override_priorities=None):
     return steps
 
 
-# taken from agent driver
+# TODO(pas-ha) verbatim copy from agent_base_vendor
+# remove if/when CR404364 is merged
 def _notify_conductor_resume_clean(task):
     LOG.debug('Sending RPC to conductor to resume cleaning for node %s',
               task.node.uuid)
@@ -459,41 +380,23 @@ def _notify_conductor_resume_clean(task):
     rpc.continue_node_clean(task.context, uuid, topic=topic)
 
 
-def _deploy(task, node_address):
-    """Internal function for deployment to a node."""
-    notags = ['wait'] if CONF.ansible.use_ramdisk_callback else []
-    node = task.node
-    LOG.debug('IP of node %(node)s is %(ip)s',
-              {'node': node.uuid, 'ip': node_address})
-    iwdi = node.driver_internal_info.get('is_whole_disk_image')
-    variables = _prepare_variables(task)
-    if iwdi:
-        notags.append('parted')
-    else:
-        variables.update(_parse_partitioning_info(task.node))
-    playbook, user, key = _parse_ansible_driver_info(task.node)
-    node_list = [(node.uuid, node_address, user, node.extra)]
-    extra_vars = _prepare_extra_vars(node_list, variables=variables)
-
-    LOG.debug('Starting deploy on node %s', node.uuid)
-    # any caller should manage exceptions raised from here
-    _run_playbook(playbook, extra_vars, key, notags=notags)
-    LOG.info(_LI('Ansible complete deploy on node %s'), node.uuid)
-
-    LOG.debug('Rebooting node %s to instance', node.uuid)
-    manager_utils.node_set_boot_device(task, 'disk', persistent=True)
-    _reboot_and_finish_deploy(task)
-
-    task.driver.boot.clean_up_ramdisk(task)
-
-
-class AnsibleDeploy(base.DeployInterface):
+# TODO(pas-ha) inherit from HeartbeatMixin if/when CR404364 is merged
+class AnsibleDeploy(agent_base.AgentDeployMixin, base.DeployInterface):
     """Interface for deploy-related actions."""
+
+    def __init__(self):
+        # NOTE(pas-ha) overriding agent creation as we won't be
+        # communicating with it, only processing heartbeats
+        self._client = None
 
     def get_properties(self):
         """Return the properties of the interface."""
-        return COMMON_PROPERTIES
+        props = COMMON_PROPERTIES.copy()
+        # NOTE(pas-ha) this is to get the deploy_forces_oob_reboot property
+        props.update(agent_base.VENDOR_PROPERTIES)
+        return props
 
+    @METRICS.timer('AnsibleDeploy.validate')
     def validate(self, task):
         """Validate the driver-specific Node deployment info."""
         task.driver.boot.validate(task)
@@ -513,27 +416,52 @@ class AnsibleDeploy(base.DeployInterface):
                       'parameters were missing') % node.uuid
         deploy_utils.check_for_missing_params(params, error_msg)
 
+    def _deploy(self, task, node_address):
+        """Internal function for deployment to a node."""
+        notags = ['shutdown']
+        if CONF.ansible.use_ramdisk_callback:
+            notags.append('wait')
+        node = task.node
+        LOG.debug('IP of node %(node)s is %(ip)s',
+                  {'node': node.uuid, 'ip': node_address})
+        variables = _prepare_variables(task)
+        iwdi = node.driver_internal_info.get('is_whole_disk_image')
+        if iwdi:
+            notags.append('parted')
+        else:
+            variables.update(_parse_partitioning_info(task.node))
+        playbook, user, key = _parse_ansible_driver_info(task.node)
+        node_list = [(node.uuid, node_address, user, node.extra)]
+        extra_vars = _prepare_extra_vars(node_list, variables=variables)
+
+        LOG.debug('Starting deploy on node %s', node.uuid)
+        # any caller should manage exceptions raised from here
+        _run_playbook(playbook, extra_vars, key, notags=notags)
+
+    @METRICS.timer('AnsibleDeploy.deploy')
     @task_manager.require_exclusive_lock
     def deploy(self, task):
         """Perform a deployment to a node."""
         manager_utils.node_power_action(task, states.REBOOT)
         if CONF.ansible.use_ramdisk_callback:
             return states.DEPLOYWAIT
+
         node = task.node
         ip_addr = _get_node_ip(task)
         try:
-            _deploy(task, ip_addr)
+            self._deploy(task, ip_addr)
         except Exception as e:
             error = _('Deploy failed for node %(node)s: '
                       'Error: %(exc)s') % {'node': node.uuid,
                                            'exc': six.text_type(e)}
             LOG.exception(error)
-            self._set_failed_state(task, error)
+            deploy_utils.set_failed_state(task, error, collect_logs=False)
 
         else:
-            LOG.info(_LI('Deployment to node %s done'), node.uuid)
+            self.reboot_to_instance(task)
             return states.DEPLOYDONE
 
+    @METRICS.timer('AnsibleDeploy.tear_down')
     @task_manager.require_exclusive_lock
     def tear_down(self, task):
         """Tear down a previous deployment on the task's node."""
@@ -541,6 +469,7 @@ class AnsibleDeploy(base.DeployInterface):
         task.driver.network.unconfigure_tenant_networks(task)
         return states.DELETED
 
+    @METRICS.timer('AnsibleDeploy.prepare')
     def prepare(self, task):
         """Prepare the deployment environment for this node."""
         node = task.node
@@ -550,11 +479,13 @@ class AnsibleDeploy(base.DeployInterface):
             manager_utils.node_power_action(task, states.POWER_OFF)
             task.driver.network.add_provisioning_network(task)
         if node.provision_state not in [states.ACTIVE, states.ADOPTING]:
-            node.instance_info = build_instance_info_for_deploy(task)
+            node.instance_info = deploy_utils.build_instance_info_for_deploy(
+                task)
             node.save()
             boot_opt = deploy_utils.build_agent_options(node)
             task.driver.boot.prepare_ramdisk(task, boot_opt)
 
+    @METRICS.timer('AnsibleDeploy.clean_up')
     def clean_up(self, task):
         """Clean up the deployment environment for this node."""
         task.driver.boot.clean_up_ramdisk(task)
@@ -579,9 +510,15 @@ class AnsibleDeploy(base.DeployInterface):
             'erase_devices_metadata':
                 CONF.deploy.erase_devices_metadata_priority
         }
-        return _get_clean_steps(task, interface='deploy',
+        return _get_clean_steps(task.node, interface='deploy',
                                 override_priorities=new_priorities)
 
+    # TODO(pas-ha) remove this if/when CR404364 is merged
+    def _refresh_clean_steps(self, task):
+        # no agent - no steps. all steps are known to conductor already
+        pass
+
+    @METRICS.timer('AnsibleDeploy.execute_clean_step')
     def execute_clean_step(self, task, step):
         """Execute a clean step.
 
@@ -593,13 +530,13 @@ class AnsibleDeploy(base.DeployInterface):
         playbook, user, key = _parse_ansible_driver_info(
             task.node, action='clean')
         stepname = step['step']
-        try:
-            ip_addr = node.driver_internal_info['ansible_cleaning_ip']
-        except KeyError:
+
+        node_address = _get_node_ip(task)
+        if not node_address:
             raise exception.NodeCleaningFailure(node=node.uuid,
                                                 reason='undefined node IP '
                                                 'addresses')
-        node_list = [(node.uuid, ip_addr, user, node.extra)]
+        node_list = [(node.uuid, node_address, user, node.extra)]
         extra_vars = _prepare_extra_vars(node_list)
 
         LOG.debug('Starting cleaning step %(step)s on node %(node)s',
@@ -618,6 +555,7 @@ class AnsibleDeploy(base.DeployInterface):
                          'on node %(node)s.'),
                      {'node': node.uuid, 'step': stepname})
 
+    @METRICS.timer('AnsibleDeploy.prepare_cleaning')
     def prepare_cleaning(self, task):
         """Boot into the ramdisk to prepare for cleaning.
 
@@ -656,6 +594,7 @@ class AnsibleDeploy(base.DeployInterface):
         _run_playbook(playbook, extra_vars, key, tags=['wait'])
         LOG.info(_LI('Node %s is ready for cleaning'), node.uuid)
 
+    @METRICS.timer('AnsibleDeploy.tear_down_cleaning')
     def tear_down_cleaning(self, task):
         """Clean up the PXE and DHCP files after cleaning.
 
@@ -672,76 +611,190 @@ class AnsibleDeploy(base.DeployInterface):
         task.driver.boot.clean_up_ramdisk(task)
         task.driver.network.remove_cleaning_network(task)
 
-    # FIXME(pas-ha): remove this workaround after nearest Ironic release
-    # that contains the specified commit (next after 6.1.0)
-    # and require this Ironic release
-    def _upgrade_lock(self, task, purpose=None):
-        try:
-            task.upgrade_lock(purpose=purpose)
-        except TypeError:
-            LOG.warning(_LW("To have better logging please update your "
-                            "Ironic installation to contain commit "
-                            "2a73b50a7fb29c4e73511d2294aa19c37d96c969."))
-            task.upgrade_lock()
+    # TODO(pas-ha) remove all these dummies if/when CR404364 is merged
+    def prepare_instance_to_boot(self, task, root_uuid, efi_sys_uuid):
+        # NOTE(pas-ha) dummy plug just in case,
+        # as this driver does not support netboot for now,
+        # and localboot prepare is happening in the playbooks
+        pass
 
-    # FIXME(pas-ha): remove this workaround after nearest Ironic release
-    # that contains the specified commit (next after 6.1.0)
-    # and require this Ironic release
-    def _set_failed_state(self, task, error):
-        try:
-            deploy_utils.set_failed_state(task, error, collect_logs=False)
-        except TypeError:
-            LOG.warning(_LW("To have proper error handling please update "
-                            "your Ironic installation to contain commit "
-                            "bb62f256f7aa55c292ebeae73ca25a4a9f0ec8c0."))
-            deploy_utils.set_failed_state(task, error)
+    def configure_local_boot(self, task, root_uuid=None,
+                             efi_system_part_uuid=None):
+        # NOTE(pas-ha) dummy plug just in case,
+        # as localboot preparation is happening in the playbooks
+        pass
 
-    def heartbeat(self, task, callback_url):
-        """Method for ansible ramdisk callback."""
+    def deploy_has_started(self, task):
+        # NOTE(pas-ha) this driver currently has only single transition
+        # from DEPLOYWAIT to DEPLOYING on first heartbeat,
+        # but just in case always return False here
+        return False
+
+    def deploy_is_done(self, task):
+        # NOTE(pas-ha) should never reach here in the first place,
+        # as after the first heartbeat node is never entering DEPLOYWAIT
+        # state but just in case always return False so node does not goes
+        # to reboot prematurely
+        return False
+
+    def continue_cleaning(self, task):
+        # NOTE(pas-ha) should never reach here in the first place,
+        # but have dummy plug just in case
+        pass
+
+    @METRICS.timer('AnsibleDeploy.continue_deploy')
+    def continue_deploy(self, task):
+        task.upgrade_lock(purpose='deploy')
+        task.process_event('resume')
+        node_address = _get_node_ip(task)
+        if not node_address:
+            raise exception.InstanceDeployFailure(
+                _("Failed to get node IP address of node %s") % task.node.uuid)
+        self._deploy(task, node_address)
+        self.reboot_to_instance(task)
+
+    @METRICS.timer('AnsibleDeploy.reboot_to_instance')
+    def reboot_to_instance(self, task):
         node = task.node
-        address = urlparse.urlparse(callback_url).netloc.split(':')[0]
+        LOG.info(_LI('Ansible complete deploy on node %s'), node.uuid)
 
-        if node.maintenance:
-            # this shouldn't happen often, but skip the rest if it does.
-            LOG.debug('Heartbeat from node %(node)s in maintenance mode; '
-                      'not taking any action.', {'node': node.uuid})
-        elif node.provision_state == states.DEPLOYWAIT:
-            LOG.debug('Heartbeat from %(node)s.', {'node': node.uuid})
-            self._upgrade_lock(task, purpose='deploy')
-            node = task.node
-            task.process_event('resume')
-            try:
-                _deploy(task, address)
-            except Exception as e:
-                error = _('Deploy failed for node %(node)s: '
-                          'Error: %(exc)s') % {'node': node.uuid,
-                                               'exc': six.text_type(e)}
-                LOG.exception(error)
-                self._set_failed_state(task, error)
+        LOG.debug('Rebooting node %s to instance', node.uuid)
+        manager_utils.node_set_boot_device(task, 'disk', persistent=True)
+        self.reboot_and_finish_deploy(task)
 
-            else:
-                LOG.info(_LI('Deployment to node %s done'), node.uuid)
-                task.process_event('done')
+        if task.driver.boot:
+            task.driver.boot.clean_up_ramdisk(task)
 
-        elif node.provision_state == states.CLEANWAIT:
-            LOG.debug('Node %s just booted to start cleaning.',
-                      node.uuid)
-            self._upgrade_lock(task, purpose='clean')
-            node = task.node
-            driver_internal_info = node.driver_internal_info
-            driver_internal_info['ansible_cleaning_ip'] = address
-            node.driver_internal_info = driver_internal_info
-            node.save()
-            try:
-                _notify_conductor_resume_clean(task)
-            except Exception as e:
-                error = _('cleaning failed for node %(node)s: '
-                          'Error: %(exc)s') % {'node': node.uuid,
-                                               'exc': six.text_type(e)}
-                LOG.exception(error)
-                manager_utils.cleaning_error_handler(task, error)
+    @METRICS.timer('AnsibleDeploy.reboot_and_finish_deploy')
+    def reboot_and_finish_deploy(self, task):
+        wait = CONF.ansible.post_deploy_get_power_state_retry_interval * 1000
+        attempts = CONF.ansible.post_deploy_get_power_state_retries + 1
 
-        else:
-            LOG.warning(_LW('Call back from %(node)s in invalid provision '
-                            'state %(state)s'),
-                        {'node': node.uuid, 'state': node.provision_state})
+        @retrying.retry(
+            stop_max_attempt_number=attempts,
+            retry_on_result=lambda state: state != states.POWER_OFF,
+            wait_fixed=wait
+        )
+        def _wait_until_powered_off(task):
+            return task.driver.power.get_power_state(task)
+
+        node = task.node
+        oob_power_off = strutils.bool_from_string(
+            node.driver_info.get('deploy_forces_oob_reboot', False))
+        try:
+            if not oob_power_off:
+                try:
+                    node_address = _get_node_ip(task)
+                    if not node_address:
+                        raise exception.InstanceDeployFailure(
+                            _("Failed to get node IP address of node %s") %
+                            node.uuid)
+                    playbook, user, key = _parse_ansible_driver_info(node)
+                    node_list = [(node.uuid, node_address, user, node.extra)]
+                    extra_vars = _prepare_extra_vars(node_list)
+                    _run_playbook(playbook, extra_vars, key,
+                                  tags=['shutdown'])
+                    _wait_until_powered_off(task)
+                except Exception as e:
+                    LOG.warning(
+                        _LW('Failed to soft power off node %(node_uuid)s '
+                            'in at least %(timeout)d seconds. '
+                            'Error: %(error)s'),
+                        {'node_uuid': node.uuid,
+                         'timeout': (wait * (attempts - 1)) / 1000,
+                         'error': e})
+            # NOTE(pas-ha) flush is a part of deploy playbook
+            # so if it finished successfully we can safely
+            # power off the node out-of-band
+            manager_utils.node_power_action(task, states.POWER_OFF)
+            task.driver.network.remove_provisioning_network(task)
+            task.driver.network.configure_tenant_networks(task)
+            manager_utils.node_power_action(task, states.POWER_ON)
+        except Exception as e:
+            msg = (_('Error rebooting node %(node)s after deploy. '
+                     'Error: %(error)s') %
+                   {'node': node.uuid, 'error': e})
+            agent_base.log_and_raise_deployment_error(task, msg)
+
+        task.process_event('done')
+        LOG.info(_LI('Deployment to node %s done'), task.node.uuid)
+
+    # TODO(pas-ha) almost verbatim copy from agent_base_vendor.AgentDeploMixin
+    # except for single last line to force skipping agent log collection
+    # remove this if/when CR404364 is merged
+    def heartbeat(self, task, callback_url):
+        """Process a heartbeat.
+
+        :param task: task to work with.
+        :param callback_url: agent HTTP API URL.
+        """
+        # TODO(dtantsur): upgrade lock only if we actually take action other
+        # than updating the last timestamp.
+        task.upgrade_lock()
+
+        node = task.node
+        LOG.debug('Heartbeat from node %s', node.uuid)
+
+        driver_internal_info = node.driver_internal_info
+        driver_internal_info['agent_url'] = callback_url
+
+        # TODO(rloo): 'agent_last_heartbeat' was deprecated since it wasn't
+        # being used so remove that entry if it exists.
+        # Hopefully all nodes will have been updated by Pike, so
+        # we can delete this code then.
+        driver_internal_info.pop('agent_last_heartbeat', None)
+
+        node.driver_internal_info = driver_internal_info
+        node.save()
+
+        # Async call backs don't set error state on their own
+        # TODO(jimrollenhagen) improve error messages here
+        msg = _('Failed checking if deploy is done.')
+        try:
+            if node.maintenance:
+                # this shouldn't happen often, but skip the rest if it does.
+                LOG.debug('Heartbeat from node %(node)s in maintenance mode; '
+                          'not taking any action.', {'node': node.uuid})
+                return
+            elif (node.provision_state == states.DEPLOYWAIT and
+                  not self.deploy_has_started(task)):
+                msg = _('Node failed to get image for deploy.')
+                self.continue_deploy(task)
+            elif (node.provision_state == states.DEPLOYWAIT and
+                  self.deploy_is_done(task)):
+                msg = _('Node failed to move to active state.')
+                self.reboot_to_instance(task)
+            elif (node.provision_state == states.DEPLOYWAIT and
+                  self.deploy_has_started(task)):
+                node.touch_provisioning()
+            elif node.provision_state == states.CLEANWAIT:
+                node.touch_provisioning()
+                try:
+                    if not node.clean_step:
+                        LOG.debug('Node %s just booted to start cleaning.',
+                                  node.uuid)
+                        msg = _('Node failed to start the first cleaning '
+                                'step.')
+                        # First, cache the clean steps
+                        self._refresh_clean_steps(task)
+                        # Then set/verify node clean steps and start cleaning
+                        manager_utils.set_node_cleaning_steps(task)
+                        _notify_conductor_resume_clean(task)
+                    else:
+                        msg = _('Node failed to check cleaning progress.')
+                        self.continue_cleaning(task)
+                except exception.NoFreeConductorWorker:
+                    # waiting for the next heartbeat, node.last_error and
+                    # logging message is filled already via conductor's hook
+                    pass
+
+        except Exception as e:
+            err_info = {'node': node.uuid, 'msg': msg, 'e': e}
+            last_error = _('Asynchronous exception for node %(node)s: '
+                           '%(msg)s Exception: %(e)s') % err_info
+            LOG.exception(last_error)
+            if node.provision_state in (states.CLEANING, states.CLEANWAIT):
+                manager_utils.cleaning_error_handler(task, last_error)
+            elif node.provision_state in (states.DEPLOYING, states.DEPLOYWAIT):
+                deploy_utils.set_failed_state(
+                    task, last_error, collect_logs=bool(self._client))

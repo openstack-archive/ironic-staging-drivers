@@ -9,5 +9,6 @@
 
 - hosts: ironic
   roles:
-    - deploy
-    - shutdown
+    - role: deploy
+    - role: shutdown
+      tags: shutdown

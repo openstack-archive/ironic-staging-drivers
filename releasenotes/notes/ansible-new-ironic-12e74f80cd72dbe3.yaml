@@ -1,0 +1,3 @@
+---
+upgrade:
+  - Ansible-deploy driver requires ironic of Newton release or newer
