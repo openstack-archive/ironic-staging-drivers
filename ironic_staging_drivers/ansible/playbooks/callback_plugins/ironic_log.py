@@ -15,12 +15,30 @@ import ConfigParser
 import os
 
 from oslo_config import cfg
+import oslo_i18n as i18n
 from oslo_log import log as logging
+import pbr.version
 
-from ironic.common import i18n
-from ironic import version
+CONF = cfg.CONF
+DOMAIN = 'ironic'
 
+# setup translation facilities
+_translators = i18n.TranslatorFactory(domain=DOMAIN)
 
+# The primary translation function using the well-known name "_"
+_ = _translators.primary
+
+# Translators for log levels.
+#
+# The abbreviated names are meant to reflect the usual use of a short
+# name like '_'. The "L" is for "log" and the other letter comes from
+# the level.
+_LI = _translators.log_info
+_LW = _translators.log_warning
+_LE = _translators.log_error
+_LC = _translators.log_critical
+
+# parse callback plugin config and Ironic config, setup logging
 basename = os.path.splitext(__file__)[0]
 config = ConfigParser.ConfigParser()
 ironic_config = None
@@ -34,21 +52,20 @@ try:
 except Exception:
     pass
 
-CONF = cfg.CONF
-DOMAIN = 'ironic'
+version_info = pbr.version.VersionInfo(DOMAIN)
+
 LOG = logging.getLogger(__name__, project=DOMAIN,
-                        version=version.version_info.release_string())
+                        version=version_info.release_string())
 logging.register_options(CONF)
 
 conf_kwargs = dict(args=[], project=DOMAIN,
-                   version=version.version_info.release_string())
+                   version=version_info.release_string())
 if ironic_config:
     conf_kwargs['default_config_files'] = [ironic_config]
 CONF(**conf_kwargs)
 
 if ironic_log_file:
     CONF.set_override("log_file", ironic_log_file)
-CONF.set_override("use_stderr", False)
 
 logging.setup(CONF, DOMAIN)
 
@@ -81,23 +98,23 @@ class CallbackModule(object):
                       dict(name=name, node=node))
 
     def v2_runner_on_failed(self, result, *args, **kwargs):
-        LOG.error(i18n._LE(
+        LOG.error(_LE(
             "Ansible task %(name)s failed on node %(node)s: %(res)s"),
             self.runner_msg_dict(result))
 
     def v2_runner_on_ok(self, result):
         msg_dict = self.runner_msg_dict(result)
         if msg_dict['name'] == 'setup':
-            LOG.info(i18n._LI(
+            LOG.info(_LI(
                 "Ansible task 'setup' complete on node %(node)s"),
                 msg_dict)
         else:
-            LOG.info(i18n._LI(
+            LOG.info(_LI(
                 "Ansible task %(name)s complete on node %(node)s: %(res)s"),
                 msg_dict)
 
     def v2_runner_on_unreachable(self, result):
-        LOG.error(i18n._LE(
+        LOG.error(_LE(
             "Node %(node)s was unreachable for Ansible task %(name)s: "
             "%(res)s"),
             self.runner_msg_dict(result))
@@ -108,12 +125,12 @@ class CallbackModule(object):
                   self.runner_msg_dict(result))
 
     def v2_runner_on_async_ok(self, result):
-        LOG.info(i18n._LI(
+        LOG.info(_LI(
             "Async Ansible task %(name)s complete on node %(node)s: %(res)s"),
             self.runner_msg_dict(result))
 
     def v2_runner_on_async_failed(self, result):
-        LOG.error(i18n._LE(
+        LOG.error(_LE(
             "Async Ansible task %(name)s failed on node %(node)s: %(res)s"),
             self.runner_msg_dict(result))
 
