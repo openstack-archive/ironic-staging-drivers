@@ -16,11 +16,14 @@ import os
 
 from oslo_config import cfg
 from oslo_log import log as logging
+import pbr.version
 
-from ironic.common import i18n
-from ironic import version
+from ironic_staging_drivers.common import i18n
 
+CONF = cfg.CONF
+DOMAIN = 'ironic'
 
+# parse callback plugin config and Ironic config, setup logging
 basename = os.path.splitext(__file__)[0]
 config = ConfigParser.ConfigParser()
 ironic_config = None
@@ -34,21 +37,20 @@ try:
 except Exception:
     pass
 
-CONF = cfg.CONF
-DOMAIN = 'ironic'
+version_info = pbr.version.VersionInfo(DOMAIN)
+
 LOG = logging.getLogger(__name__, project=DOMAIN,
-                        version=version.version_info.release_string())
+                        version=version_info.release_string())
 logging.register_options(CONF)
 
 conf_kwargs = dict(args=[], project=DOMAIN,
-                   version=version.version_info.release_string())
+                   version=version_info.release_string())
 if ironic_config:
     conf_kwargs['default_config_files'] = [ironic_config]
 CONF(**conf_kwargs)
 
 if ironic_log_file:
     CONF.set_override("log_file", ironic_log_file)
-CONF.set_override("use_stderr", False)
 
 logging.setup(CONF, DOMAIN)
 
