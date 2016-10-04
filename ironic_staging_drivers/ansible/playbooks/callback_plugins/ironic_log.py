@@ -13,6 +13,7 @@
 
 import ConfigParser
 import os
+import subprocess
 
 from oslo_config import cfg
 from oslo_log import log as logging
@@ -46,9 +47,27 @@ if ironic_config:
     conf_kwargs['default_config_files'] = [ironic_config]
 CONF(**conf_kwargs)
 
+
+if not (ironic_log_file or
+        (CONF.use_syslog or
+         CONF.log_config_append or
+         CONF.log_file)):
+    # We have no logging files or extra configuration, and explicit
+    # log file is not set in config of the callback plugin - DevStack!
+    # NOTE(pas-ha) quite a dirty hack!!!
+    # posts log entries directly to ironic-conductor's
+    # stdout, suitable for DevStack only!
+    try:
+        pid = subprocess.check_output(
+            ['pgrep', '-f', 'ironic-conductor']).strip()
+        int(pid)
+    except Exception:
+        pass
+    else:
+        ironic_log_file = os.path.join('/proc', pid.strip(), 'fd/1')
 if ironic_log_file:
     CONF.set_override("log_file", ironic_log_file)
-CONF.set_override("use_stderr", False)
+    CONF.set_override("use_stderr", False)
 
 logging.setup(CONF, DOMAIN)
 
