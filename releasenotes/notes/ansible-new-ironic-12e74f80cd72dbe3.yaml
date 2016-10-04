@@ -1,0 +1,7 @@
+---
+upgrade:
+  - Ansible-deploy driver requires ironic of Newton release or newer
+
+features:
+  - Ansible-deploy now uses and honors ``deploy_forces_oob_reboot`` driver
+    property.
