@@ -11,3 +11,4 @@ Available drivers
      drivers/amt
      drivers/iboot
      drivers/libvirt
+     drivers/intel_nm
