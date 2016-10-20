@@ -613,9 +613,10 @@ class AnsibleDeploy(base.DeployInterface):
                           "on node %(node)s."), {
                               'node': node.uuid, 'step': stepname})
             manager_utils.cleaning_error_handler(task, six.text_type(e))
-        LOG.info(_LI('Ansible completed cleaning step %(step)s '
-                     'on node %(node)s.'),
-                 {'node': node.uuid, 'step': stepname})
+        else:
+            LOG.info(_LI('Ansible completed cleaning step %(step)s '
+                         'on node %(node)s.'),
+                     {'node': node.uuid, 'step': stepname})
 
     def prepare_cleaning(self, task):
         """Boot into the ramdisk to prepare for cleaning.
