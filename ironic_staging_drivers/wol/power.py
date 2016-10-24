@@ -181,3 +181,12 @@ class WakeOnLanPower(base.PowerInterface):
                      'not fully support this operation. Trying to '
                      'power on the node.'), task.node.uuid)
         self.set_power_state(task, states.POWER_ON)
+
+    def get_supported_power_states(self, task):
+        """Get a list of the supported power states.
+
+        :param task: A TaskManager instance containing the node to act on.
+        :returns: A list with the supported power states defined
+                  in :mod:`ironic.common.states`.
+        """
+        return [states.POWER_ON]
