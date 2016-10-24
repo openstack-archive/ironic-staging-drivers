@@ -194,3 +194,9 @@ class WakeOnLanDriverTestCase(db_base.DbTestCase):
             mock_log.assert_called_once_with(mock.ANY, self.node.uuid)
             mock_power.assert_called_once_with(task.driver.power, task,
                                                states.POWER_ON)
+
+    def test_get_supported_power_states(self):
+        with task_manager.acquire(
+                self.context, self.node.uuid, shared=True) as task:
+            pstate = task.driver.power.get_supported_power_states(task)
+            self.assertEqual([states.POWER_ON, states.REBOOT], pstate)
