@@ -17,13 +17,12 @@ from ironic.common import exception as ironic_exception
 from ironic.drivers import base
 from ironic.drivers.modules import agent
 from ironic.drivers.modules import fake
-from ironic.drivers.modules import iscsi_deploy
 from ironic.drivers.modules import pxe
 from oslo_utils import importutils
 
+from ironic_staging_drivers.amt import deploy as amt_deploy
 from ironic_staging_drivers.amt import management as amt_management
 from ironic_staging_drivers.amt import power as amt_power
-from ironic_staging_drivers.amt import vendor as amt_vendor
 from ironic_staging_drivers.common.i18n import _
 
 
@@ -38,7 +37,6 @@ class FakeAMTFakeDriver(base.BaseDriver):
         self.power = amt_power.AMTPower()
         self.deploy = fake.FakeDeploy()
         self.management = amt_management.AMTManagement()
-        self.vendor = amt_vendor.AMTPXEVendorPassthru()
 
 
 class PXEAndAMTISCSIDriver(base.BaseDriver):
@@ -58,9 +56,8 @@ class PXEAndAMTISCSIDriver(base.BaseDriver):
                 reason=_("Unable to import pywsman library"))
         self.power = amt_power.AMTPower()
         self.boot = pxe.PXEBoot()
-        self.deploy = iscsi_deploy.ISCSIDeploy()
+        self.deploy = amt_deploy.AMTISCSIDeploy()
         self.management = amt_management.AMTManagement()
-        self.vendor = amt_vendor.AMTPXEVendorPassthru()
 
 
 class PXEAndAMTAgentDriver(base.BaseDriver):
@@ -82,4 +79,3 @@ class PXEAndAMTAgentDriver(base.BaseDriver):
         self.boot = pxe.PXEBoot()
         self.deploy = agent.AgentDeploy()
         self.management = amt_management.AMTManagement()
-        self.vendor = agent.AgentVendorInterface()

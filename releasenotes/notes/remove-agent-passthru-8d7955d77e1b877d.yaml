@@ -1,0 +1,20 @@
+---
+upgrade:
+  - Implementations and dependency on Ironic Python Agent (IPA)
+    lookup/heartbeats as vendor passthru methods is removed from
+    all drivers in ``ironic-staging-drivers`` as it has been deprecated
+    and removed from ironic as well.
+
+    Effectively, ``AMT``, ``iBoot``, ``Libvirt`` and ``WoL`` drivers
+    no longer have any vendor passthru methods.
+    ``Intel NodeManager`` drivers still have most of their vendor passthru
+    methods related to IPMI and Intel NodeManager-specific extensions,
+    except for ``lookup`` and ``heartbeat`` vendor passthru methods.
+
+    This also means that drivers in ``ironic-staging-drivers`` are now
+    incompatible with ironic < 6.1.0 and IPA < 1.5.0.
+    On upgrade of ironic-staging-drivers, operators must ensure that their
+    ironic version and verison of IPA in deploy ramdisks is compatible and
+    upgrade those too if needed.
+    Users of custom (non-IPA-based) implementations for lookup/heartbeats
+    from ramdisk are required to update those to use ironic API v1.22.

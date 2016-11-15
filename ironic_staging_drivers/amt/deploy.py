@@ -20,11 +20,12 @@ from ironic.drivers.modules import deploy_utils
 from ironic.drivers.modules import iscsi_deploy
 
 
-class AMTPXEVendorPassthru(iscsi_deploy.VendorPassthru):
+class AMTISCSIDeploy(iscsi_deploy.ISCSIDeploy):
+    """AMT-specific version of ISCSIDeploy driver interface"""
 
     @task_manager.require_exclusive_lock
     def continue_deploy(self, task):
         if deploy_utils.get_boot_option(task.node) == "netboot":
             task.driver.management.ensure_next_boot_device(task.node,
                                                            boot_devices.PXE)
-        super(AMTPXEVendorPassthru, self).continue_deploy(task)
+        super(AMTISCSIDeploy, self).continue_deploy(task)

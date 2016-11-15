@@ -45,7 +45,6 @@ class PXELibvirtAgentDriver(base.BaseDriver):
         self.boot = pxe.PXEBoot()
         self.deploy = agent.AgentDeploy()
         self.management = power.LibvirtManagement()
-        self.vendor = agent.AgentVendorInterface()
         self.raid = agent.AgentRAID()
 
 
@@ -65,4 +64,3 @@ class PXELibvirtISCSIDriver(base.BaseDriver):
         self.boot = pxe.PXEBoot()
         self.deploy = iscsi_deploy.ISCSIDeploy()
         self.management = power.LibvirtManagement()
-        self.vendor = iscsi_deploy.VendorPassthru()

@@ -46,7 +46,6 @@ class PXEWakeOnLanISCSIDriver(base.BaseDriver):
         self.boot = pxe.PXEBoot()
         self.power = wol_power.WakeOnLanPower()
         self.deploy = iscsi_deploy.ISCSIDeploy()
-        self.vendor = iscsi_deploy.VendorPassthru()
 
 
 class PXEWakeOnLanAgentDriver(base.BaseDriver):
@@ -64,4 +63,3 @@ class PXEWakeOnLanAgentDriver(base.BaseDriver):
         self.boot = pxe.PXEBoot()
         self.power = wol_power.WakeOnLanPower()
         self.deploy = agent.AgentDeploy()
-        self.vendor = agent.AgentVendorInterface()
