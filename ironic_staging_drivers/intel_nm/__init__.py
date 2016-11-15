@@ -38,12 +38,10 @@ class AgentAndIPMIToolIntelNMDriver(base.BaseDriver):
         self.deploy = agent.AgentDeploy()
         self.management = ipmitool.IPMIManagement()
         self.console = ipmitool.IPMIShellinaboxConsole()
-        self.agent_vendor = agent.AgentVendorInterface()
         self.ipmi_vendor = ipmitool.VendorPassthru()
         self.nm_vendor = nm_vendor.IntelNMVendorPassthru()
         self.mapping = {'send_raw': self.ipmi_vendor,
                         'bmc_reset': self.ipmi_vendor,
-                        'heartbeat': self.agent_vendor,
                         'control_nm_policy': self.nm_vendor,
                         'set_nm_policy': self.nm_vendor,
                         'get_nm_policy': self.nm_vendor,
@@ -55,10 +53,7 @@ class AgentAndIPMIToolIntelNMDriver(base.BaseDriver):
                         'get_nm_version': self.nm_vendor,
                         'get_nm_statistics': self.nm_vendor,
                         'reset_nm_statistics': self.nm_vendor}
-        self.driver_passthru_mapping = {'lookup': self.agent_vendor}
-        self.vendor = utils.MixinVendorInterface(
-            self.mapping,
-            driver_passthru_mapping=self.driver_passthru_mapping)
+        self.vendor = utils.MixinVendorInterface(self.mapping)
         self.raid = agent.AgentRAID()
         self.inspect = inspector.Inspector.create_if_enabled(
             'AgentAndIPMIToolDriver')
