@@ -57,7 +57,6 @@ class PXEIBootISCSIDriver(base.BaseDriver):
         self.power = iboot_power.IBootPower()
         self.boot = pxe.PXEBoot()
         self.deploy = iscsi_deploy.ISCSIDeploy()
-        self.vendor = iscsi_deploy.VendorPassthru()
 
 
 class PXEIBootAgentDriver(base.BaseDriver):
@@ -78,4 +77,3 @@ class PXEIBootAgentDriver(base.BaseDriver):
         self.power = iboot_power.IBootPower()
         self.boot = pxe.PXEBoot()
         self.deploy = agent.AgentDeploy()
-        self.vendor = agent.AgentVendorInterface()
