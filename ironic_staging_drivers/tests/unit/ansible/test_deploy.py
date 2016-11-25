@@ -609,10 +609,8 @@ class TestAnsibleDeploy(db_base.DbTestCase):
     @mock.patch('ironic.drivers.modules.deploy_utils.build_agent_options',
                 return_value={'op1': 'test1'}, autospec=True)
     @mock.patch.object(pxe.PXEBoot, 'prepare_ramdisk')
-    @mock.patch.object(deploy_utils, 'prepare_cleaning_ports', autospec=True)
     def test_prepare_cleaning_callback(
-            self, prepare_cleaning_ports_mock, prepare_ramdisk_mock,
-            buid_options_mock, power_action_mock,
+            self, prepare_ramdisk_mock, buid_options_mock, power_action_mock,
             set_node_cleaning_steps, run_playbook_mock):
         step = {'priority': 10, 'interface': 'deploy',
                 'step': 'erase_devices', 'tags': ['clean']}
@@ -622,10 +620,13 @@ class TestAnsibleDeploy(db_base.DbTestCase):
         self.node.save()
 
         with task_manager.acquire(self.context, self.node.uuid) as task:
+            task.driver.network.add_cleaning_network = mock.Mock()
+
             state = self.driver.prepare_cleaning(task)
 
             set_node_cleaning_steps.assert_called_once_with(task)
-            prepare_cleaning_ports_mock.assert_called_once_with(task)
+            task.driver.network.add_cleaning_network.assert_called_once_with(
+                task)
             buid_options_mock.assert_called_once_with(task.node)
             prepare_ramdisk_mock.assert_called_once_with(
                 task, {'op1': 'test1'})
@@ -634,15 +635,15 @@ class TestAnsibleDeploy(db_base.DbTestCase):
             self.assertEqual(states.CLEANWAIT, state)
 
     @mock.patch.object(utils, 'set_node_cleaning_steps', autospec=True)
-    @mock.patch.object(deploy_utils, 'prepare_cleaning_ports', autospec=True)
     def test_prepare_cleaning_callback_no_steps(self,
-                                                prepare_cleaning_ports_mock,
                                                 set_node_cleaning_steps):
         with task_manager.acquire(self.context, self.node.uuid) as task:
+            task.driver.network.add_cleaning_network = mock.Mock()
+
             self.driver.prepare_cleaning(task)
 
             set_node_cleaning_steps.assert_called_once_with(task)
-            self.assertFalse(prepare_cleaning_ports_mock.called)
+            self.assertFalse(task.driver.network.add_cleaning_network.called)
 
     @mock.patch.object(ansible_deploy, '_prepare_extra_vars', autospec=True)
     @mock.patch.object(ansible_deploy, '_parse_ansible_driver_info',
@@ -655,9 +656,7 @@ class TestAnsibleDeploy(db_base.DbTestCase):
     @mock.patch('ironic.drivers.modules.deploy_utils.build_agent_options',
                 return_value={'op1': 'test1'}, autospec=True)
     @mock.patch.object(pxe.PXEBoot, 'prepare_ramdisk')
-    @mock.patch.object(deploy_utils, 'prepare_cleaning_ports', autospec=True)
-    def test_prepare_cleaning(self, prepare_cleaning_ports_mock,
-                              prepare_ramdisk_mock, buid_options_mock,
+    def test_prepare_cleaning(self, prepare_ramdisk_mock, buid_options_mock,
                               power_action_mock, run_playbook_mock,
                               get_ip_mock, parse_driver_info_mock,
                               prepare_extra_mock):
@@ -669,9 +668,12 @@ class TestAnsibleDeploy(db_base.DbTestCase):
         prepare_extra_mock.return_value = ironic_nodes
 
         with task_manager.acquire(self.context, self.node.uuid) as task:
+            task.driver.network.add_cleaning_network = mock.Mock()
+
             state = self.driver.prepare_cleaning(task)
 
-            prepare_cleaning_ports_mock.assert_called_once_with(task)
+            task.driver.network.add_cleaning_network.assert_called_once_with(
+                task)
             buid_options_mock.assert_called_once_with(task.node)
             prepare_ramdisk_mock.assert_called_once_with(
                 task, {'op1': 'test1'})
@@ -687,16 +689,16 @@ class TestAnsibleDeploy(db_base.DbTestCase):
 
     @mock.patch.object(utils, 'node_power_action', autospec=True)
     @mock.patch.object(pxe.PXEBoot, 'clean_up_ramdisk')
-    @mock.patch.object(deploy_utils, 'tear_down_cleaning_ports',
-                       autospec=True)
-    def test_tear_down_cleaning(self, tear_down_utils_mock,
-                                clean_ramdisk_mock, power_action_mock):
+    def test_tear_down_cleaning(self, clean_ramdisk_mock, power_action_mock):
         with task_manager.acquire(self.context, self.node.uuid) as task:
+            task.driver.network.remove_cleaning_network = mock.Mock()
+
             self.driver.tear_down_cleaning(task)
 
             power_action_mock.assert_called_once_with(task, states.POWER_OFF)
             clean_ramdisk_mock.assert_called_once_with(task)
-            tear_down_utils_mock.assert_called_once_with(task)
+            (task.driver.network.remove_cleaning_network
+                .assert_called_once_with(task))
 
     @mock.patch.object(ansible_deploy, 'LOG', autospec=True)
     def test_heartbeat_not_wait_state(self, log_mock):

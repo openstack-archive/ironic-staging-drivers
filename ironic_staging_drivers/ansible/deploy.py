@@ -633,7 +633,7 @@ class AnsibleDeploy(base.DeployInterface):
             if not node.driver_internal_info['clean_steps']:
                 # no clean steps configured, nothing to do.
                 return
-        deploy_utils.prepare_cleaning_ports(task)
+        task.driver.network.add_cleaning_network(task)
         boot_opt = deploy_utils.build_agent_options(node)
         task.driver.boot.prepare_ramdisk(task, boot_opt)
         manager_utils.node_power_action(task, states.REBOOT)
@@ -670,7 +670,7 @@ class AnsibleDeploy(base.DeployInterface):
         node.save()
         manager_utils.node_power_action(task, states.POWER_OFF)
         task.driver.boot.clean_up_ramdisk(task)
-        deploy_utils.tear_down_cleaning_ports(task)
+        task.driver.network.remove_cleaning_network(task)
 
     # FIXME(pas-ha): remove this workaround after nearest Ironic release
     # that contains the specified commit (next after 6.1.0)
