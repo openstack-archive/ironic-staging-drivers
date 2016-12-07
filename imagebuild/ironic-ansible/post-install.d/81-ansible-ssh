@@ -20,7 +20,7 @@ echo $ANSIBLE_DEPLOY_HOSTAME > /etc/hostname
 # Ansible issues #13965 (fixed in 2.0.1.0), #14568, #14714
 
 # ensure /etc/hosts has hostname in it
-sed -i "s/127.0.0.1\s*localhost/127.0.0.1 localhost $ANSIBLE_DEPLOY_HOSTAME/g" /etc/hosts
+echo "127.0.0.1 localhost $ANSIBLE_DEPLOY_HOSTAME" > /etc/hosts
 
 # ensure SSH host keys exist
 ssh-keygen -f /etc/ssh/ssh_host_rsa_key -N '' -t rsa
