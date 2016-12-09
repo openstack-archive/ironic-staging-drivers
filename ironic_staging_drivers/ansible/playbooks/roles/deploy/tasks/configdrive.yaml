@@ -1,22 +1,22 @@
 - name: download configdrive data
   get_url:
-    url: "{{ configdrive.location }}"
+    url: "{{ ironic.configdrive.location }}"
     dest: /tmp/{{ inventory_hostname }}.gz.base64
   async: 600
   poll: 15
-  when: "{{ configdrive.type|default('') == 'url' }}"
+  when: "{{ ironic.configdrive.type|default('') == 'url' }}"
 
 - block:
   - name: copy configdrive file to node
     copy:
-      src: "{{ configdrive.location }}"
+      src: "{{ ironic.configdrive.location }}"
       dest: /tmp/{{ inventory_hostname }}.gz.base64
   - name: remove configdrive from conductor
     delegate_to: conductor
     file:
-      path: "{{ configdrive.location }}"
+      path: "{{ ironic.configdrive.location }}"
       state: absent
-  when: "{{ configdrive.type|default('') == 'file' }}"
+  when: "{{ ironic.configdrive.type|default('') == 'file' }}"
 
 - name: unpack configdrive
   shell: cat /tmp/{{ inventory_hostname }}.gz.base64 | base64 --decode | gunzip > /tmp/{{ inventory_hostname }}.cndrive
