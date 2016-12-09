@@ -7,5 +7,5 @@
         ansible_host: "{{ item.ip }}"
         ansible_user: "{{ item.user }}"
         ironic_extra: "{{ item.extra | default({}) }}"
-      with_items: "{{ ironic_nodes }}"
+      with_items: "{{ ironic.nodes }}"
       tags: always

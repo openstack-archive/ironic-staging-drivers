@@ -9,7 +9,7 @@ and requiring no agents running on the node being configured.
 All communications with the node are by default performed over secure SSH
 transport.
 
-This deployment driver is using Ansible playbooks to define the
+The Ansible-deploy deployment driver is using Ansible playbooks to define the
 deployment logic. It is not based on `Ironic Python Agent`_ (IPA)
 and does not generally need it to be running in the deploy ramdisk.
 
@@ -44,8 +44,7 @@ CLI command via Python's ``subprocess`` library.
 
 Each action (deploy, clean) is described by single playbook with roles,
 which is run whole during deployment, or tag-wise during cleaning.
-Control of deployment types and cleaning steps is through tags and
-auxiliary steps file for cleaning.
+Control of cleaning steps is through tags and auxiliary clean steps file.
 The playbooks for actions can be set per-node, as is cleaning steps
 file.
 
@@ -70,7 +69,8 @@ Supports whole-disk images and partition images:
 For partition images the driver will create root partition, and,
 if requested, ephemeral and swap partitions as set in node's
 ``instance_info`` by nova or operator.
-Partition table created will be of ``msdos`` type.
+Partition table created will be of ``msdos`` type by default, the node's
+``disk_label`` capability is honored if it is set in node's ``instance_info``.
 
 Configdrive partition
 ~~~~~~~~~~~~~~~~~~~~~
@@ -107,9 +107,9 @@ Logging
 
 Logging is implemented as custom Ansible callback module,
 that makes use of ``oslo.log`` and ``oslo.config`` libraries
-and can interleave Ansible event log into the log file configured in
-main ironic configuration file (``/etc/ironic/ironic.conf`` by default),
-or use a separate file to log Ansible events into.
+and can re-use logging configuration defined in the main ironic configuration
+file (``/etc/ironic/ironic.conf`` by default) to set logging for Ansible
+events, or use a separate file for this purpose.
 
 .. note::
     Currently this has some quirks in DevStack - due to default
@@ -118,13 +118,11 @@ or use a separate file to log Ansible events into.
     DevStack in 'developer' mode using ``screen``.
 
 
-
 Requirements
 ============
 
 ironic
-    Requires ironic API ≥ 1.22 when using callback functionality.
-    For better logging, ironic should be > 6.1.0 release.
+    Requires ironic of Newton release or newer.
 
 Ansible
     Tested with and targets Ansible ≥ 2.1
@@ -144,7 +142,7 @@ Bootstrap image requirements
 - python-netifaces (for ironic callback)
 
 Set of scripts to build a suitable deploy ramdisk based on TinyCore Linux,
-and an element for ``diskimage-builder`` will be provided.
+and an element for ``diskimage-builder`` is provided.
 
 Setting up your environment
 ===========================
@@ -280,6 +278,11 @@ ansible_deploy_playbook
     to use when deploying this node.
     Default is ``deploy.yaml``.
 
+ansible_shutdown_playbook
+    Name of the playbook file inside the ``playbooks_path`` folder
+    to use to gracefully shutdown the node in-band.
+    Default is ``shutdown.yaml``.
+
 ansible_clean_playbook
     Name of the playbook file inside the ``playbooks_path`` folder
     to use when cleaning the node.
@@ -336,6 +339,23 @@ add-ironic-nodes.yaml
     as well as some per-node variables.
     Include it in all your custom playbooks as the first play.
 
+The default ``deploy.yaml`` playbook is using several smaller roles that
+correspond to particular stages of deployment process:
+
+    - ``discover`` - e.g. set root device and image target
+    - ``prepare`` - if needed, prepare system, for example create partitions
+    - ``deploy`` - download/convert/write user image and configdrive
+    - ``configure`` - post-deployment steps, e.g. installing the bootloader
+
+Some more included roles are:
+
+    - ``wait`` - used when the driver is configured to not use callback from
+      node to start the deployment. This role waits for OpenSSH server to
+      become available on the node to connect to.
+    - ``shutdown`` - used to gracefully power the node off in-band
+    - ``clean`` - defines cleaning procedure, with each clean step defined
+      as separate playbook tag.
+
 Extending playbooks
 -------------------
 
@@ -344,14 +364,19 @@ Most probably you'd start experimenting like this:
 #. Create a copy of ``deploy.yaml`` playbook, name it distinctively.
 #. Create Ansible roles with your customized logic in ``roles`` folder.
 
-   A. Add the role with logic to be run *before* image download/writing
-      as the first role in your playbook. This is a good place to
-      set facts overriding those provided/omitted by the driver,
-      like ``ironic_partitions`` or ``ironic_root_device``.
-   B. Add the role with logic to be run *after* image is written to disk
-      as second-to-last role in the playbook (right before ``shutdown`` role).
+   A. In your custom deploy playbook, replace the ``prepare`` role
+      with your own one that defines steps to be run
+      *before* image download/writing.
+      This is a good place to set facts overriding those provided/omitted
+      by the driver, like ``ironic_partitions`` or ``ironic_root_device``,
+      and create custom partitions or (software) RAIDs.
+   B. In your custom deploy playbook, replace the ``configure`` role
+      with your own one that defines steps to be run
+      *after* image is written to disk.
+      This is a good place for example to configure the bootloader and
+      add kernel options to avoid additional reboots.
 
-#. Assign the playbook you've created to the node's
+#. Assign the custom deploy playbook you've created to the node's
    ``driver_info/ansible_deploy_playbook`` field.
 #. Run deployment.
 
@@ -364,92 +389,90 @@ Most probably you'd start experimenting like this:
 Variables you have access to
 ----------------------------
 
-This driver will pass the following extra arguments to ``ansible-playbook``
-invocation which you can use in your plays as well
+This driver will pass the single JSON-ified extra var argument to
+Ansible (as ``ansible-playbook -e ..``).
+Those values are then accessible in your plays as well
 (some of them are optional and might not be defined):
 
-``image``
-    Dictionary of the following structure:
+.. code-block:: yaml
 
-    .. code-block:: json
 
-       {"image": {
-           "url": "<url-to-user-image>",
-           "disk_format": "<qcow|raw|..>",
-           "checksum": "<hash-algo:hash>",
-           "mem_req": 12345
-           }
-       }
+   ironic:
+     nodes:
+     - ip: <IPADDRESS>
+       name: <NODE_UUID>
+       user: <USER ANSIBLE WILL USE>
+       extra: <COPY OF NODE's EXTRA FIELD>
+     image:
+       url: <URL TO FETCH THE USER IMAGE FROM>
+       disk_format: <qcow2|raw|...>
+       container_format: <bare|...>
+       checksum: <hash-algo:hashstring>
+       mem_req: <REQUIRED FREE MEMORY TO DOWNLOAD IMAGE TO RAM>
+       tags: <LIST OF IMAGE TAGS AS DEFINED IN GLANCE>
+       properties: <DICT OF IMAGE PROPERTIES AS DEFINED IN GLANCE>
+     configdrive:
+       type: <url|file>
+       location: <URL OR PATH ON CONDUCTOR>
+     partition_info:
+       label: <msdos|gpt>
+       preserve_ephemeral: <bool>
+       ephemeral_format: <FILESYSTEM TO CREATE ON EPHEMERAL PARTITION>
+       partitions: <LIST OF PARTITIONS IN FORMAT EXPECTED BY PARTED MODULE>
 
-    where
 
-    - ``url`` - URL to download the target image from as set in
-      ``instance_info/image_url``.
-    - ``disk_format`` - fetched from Glance or set in
-      ``instance_info/image_disk_format``.
-      Mainly used to distinguish ``raw`` images that can be streamed directly
-      to disk.
-    - ``checksum`` - (optional) image checksum as fetched from Glance or set
-      in ``instance_info/image_checksum``. Used to verify downloaded image.
-      When deploying from Glance, this will always be ``md5`` checksum.
-      When deploying standalone, can also be set in the form ``<algo>:<hash>``
-      to specify another hashing algorithm, which must be supported by
-      Python ``hashlib`` package from standard library.
-    - ``mem_req`` - (optional) required available memory on the node to fit
-      the target image when not streamed to disk directly.
-      Calculated from the image size and ``[ansible]extra_memory``
-      config option.
+Some more explanations:
 
-``configdrive``
-    Optional. When defined in ``instance_info`` is a dictionary
-    of the following structure:
+``ironic.nodes``
+    List of dictionaries (currently of only one element) that will be used by
+    ``add-ironic-nodes.yaml`` play to populate in-memory inventory.
+    It also contains a copy of node's ``extra`` field so you can access it in
+    the playbooks. The Ansible's host is set to node's UUID.
 
-    .. code-block:: json
+``ironic.image``
+    All fields of node's ``instance_info`` that start with ``image_`` are
+    passed inside this variable. Some extra notes and fields:
 
-       {"configdrive": {
-           "type": "<url|file>",
-           "location": "<local-path-or-url>"
-           }
-       }
+    - ``mem_req`` is calculated from image size (if available) and config
+      option ``[ansible]extra_memory``.
+    - if ``checksum`` initially does not start with ``hash-algo:``, hashing
+      algorithm is assumed to be ``md5`` (default in Glance).
 
-    where
-
-    - ``type`` - either ``url`` or ``file``
-    - ``location`` - depending on ``type``, either a URL or path to file
-      stored on ironic-conductor node to fetch the content
-      of configdrive partition from.
-
-``ironic_partitions``
+``ironic.partiton_info.partitions``
     Optional. List of dictionaries defining partitions to create on the node
     in the form:
 
-    .. code-block:: json
+    .. code-block:: yaml
 
-       {"ironic_partitions": [
-           {
-               "name": "<partition name>",
-               "size_mib": 12345,
-               "boot": "yes|no|..",
-               "swap": "yes|no|.."
-           }
-       ]}
+       partitions:
+       - name: <NAME OF PARTITION>
+         unit: <UNITS FOR SIZE>
+         size: <SIZE OF THE PARTITION>
+         type: <primary|extended|logical>
+         align: <ONE OF PARTED_SUPPORTED OPTIONS>
+         format: <PARTITION TYPE TO SET>
+         flags:
+           flag_name: <bool>
 
     The driver will populate this list from ``root_gb``, ``swap_mb`` and
     ``ephemeral_gb`` fields of ``instance_info``.
+    The driver will also prepend the ``bios_grub``-labeled partition
+    when deploying on GPT-labeled disk,
+    and pre-create a 64MiB partiton for configdrive if it is set in
+    ``instance_info``.
 
-``ephemeral_format``
+    Please read the documentation included in the ``parted`` module's source
+    for more info on the module and its arguments.
+
+``ironic.partiton_info.ephemeral_format``
     Optional. Taken from ``instance_info``, it defines file system to be
     created on the ephemeral partition.
     Defaults to the value of ``[pxe]default_ephemeral_format`` option
     in ironic configuration file.
 
-``preserve_ephemeral``
+``ironic.partiton_info.preserve_ephemeral``
     Optional. Taken from the ``instance_info``, it specifies if the ephemeral
     partition must be preserved or rebuilt. Defaults to ``no``.
-
-``ironic_extra``
-    Dictionary holding a copy of ``extra`` field of ironic node,
-    with any per-node information.
 
 As usual for Ansible playbooks, you also have access to standard
 Ansible facts discovered by ``setup`` module.
@@ -458,17 +481,20 @@ Included custom Ansible modules
 -------------------------------
 
 The provided ``playbooks_path/library`` folder includes several custom
-Ansible modules used by default implementation of ``deploy`` role.
+Ansible modules used by default implementation of ``deploy`` and
+``prepare`` roles.
 You can use these modules in your playbooks as well.
 
 ``stream_url``
     Streaming download from HTTP(S) source to the disk device directly,
-    tries to be compatible with Ansible-core ``get_url`` module in terms of
+    tries to be compatible with Ansible's ``get_url`` module in terms of
     module arguments.
     Due to the low level of such operation it is not idempotent.
 
 ``parted``
     creates partition tables and partitions with ``parted`` utility.
     Due to the low level of such operation it is not idempotent.
+    Please read the documentation included in the module's source
+    for more information about this module and its arguments.
 
 .. _Ironic Python Agent: http://docs.openstack.org/developer/ironic-python-agent
