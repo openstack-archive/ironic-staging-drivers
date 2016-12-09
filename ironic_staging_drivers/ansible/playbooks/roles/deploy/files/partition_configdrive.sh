@@ -16,9 +16,6 @@
 
 # NOTE(pas-ha) this is mostly copied over from Ironic Python Agent
 # compared to the original file in IPA,
-# all logging is disabled to let Ansible output the full trace.
-# The places that log to fail are commented out to be replaced later
-# with different handler when making this script a real Ansible module
 
 # TODO(pas-ha) rewrite this shell script to be a proper Ansible module
 
@@ -46,7 +43,7 @@ DEVICE="$1"
 
 # We need to run partx -u to ensure all partitions are visible so the
 # following blkid command returns partitions just imaged to the device
-partx -u $DEVICE # || fail "running partx -u $DEVICE"
+partx -u $DEVICE  || fail "running partx -u $DEVICE"
 
 # todo(jayf): partx -u doesn't work in all cases, but partprobe fails in
 # devstack. We run both commands now as a temporary workaround for bug 1433812
@@ -56,16 +53,11 @@ partprobe $DEVICE || true
 
 # Check for preexisting partition for configdrive
 EXISTING_PARTITION=`/sbin/blkid -l -o device $DEVICE -t LABEL=config-2`
-if [ $? = 0 ]; then
-  #log "Existing configdrive found on ${DEVICE} at ${EXISTING_PARTITION}"
-  ISO_PARTITION=$EXISTING_PARTITION
-else
-
+if [ -z $EXISTING_PARTITION ]; then
   # Check if it is GPT partition and needs to be re-sized
-  partprobe $DEVICE print 2>&1 | grep "fix the GPT to use all of the space"
-  if [ $? = 0 ]; then
+  if [ `partprobe $DEVICE print 2>&1 | grep "fix the GPT to use all of the space"` ]; then
     #log "Fixing GPT to use all of the space on device $DEVICE"
-    sgdisk -e $DEVICE #|| fail "move backup GPT data structures to the end of ${DEVICE}"
+    sgdisk -e $DEVICE || fail "move backup GPT data structures to the end of ${DEVICE}"
 
     # Need to create new partition for config drive
     # Not all images have partion numbers in a sequential numbers. There are holes.
@@ -78,7 +70,7 @@ else
 
     # Create small partition at the end of the device
     #log "Adding configdrive partition to $DEVICE"
-    sgdisk -n 0:-64MB:0 $DEVICE #|| fail "creating configdrive on ${DEVICE}"
+    sgdisk -n 0:-64MB:0 $DEVICE || fail "creating configdrive on ${DEVICE}"
 
     gdisk -l $DEVICE | grep -A$MAX_DISK_PARTITIONS "Number  Start" | grep -v "Number  Start" > $UPDATED_PARTITION_LIST
 
@@ -100,15 +92,18 @@ else
     fi
 
     #log "Adding configdrive partition to $DEVICE"
-    parted -a optimal -s -- $DEVICE mkpart primary ext2 $startlimit $endlimit #|| fail "creating configdrive on ${DEVICE}"
+    parted -a optimal -s -- $DEVICE mkpart primary fat32 $startlimit $endlimit || fail "creating configdrive on ${DEVICE}"
 
     # Find partition we just created
     # Dump all partitions, ignore empty ones, then get the last partition ID
-    ISO_PARTITION=`sfdisk --dump $DEVICE | grep -v ' 0,' | tail -n1 | awk -F ':' '{print $1}' | sed -e 's/\s*$//'` #|| fail "finding ISO partition created on ${DEVICE}"
+    ISO_PARTITION=`sfdisk --dump $DEVICE | grep -v ' 0,' | tail -n1 | awk -F ':' '{print $1}' | sed -e 's/\s*$//'` || fail "finding ISO partition created on ${DEVICE}"
 
     # Wait for udev to pick up the partition
     udevadm settle --exit-if-exists=$ISO_PARTITION
   fi
+else
+  #log "Existing configdrive found on ${DEVICE} at ${EXISTING_PARTITION}"
+  ISO_PARTITION=$EXISTING_PARTITION
 fi
 
 # Output the created/discovered partition for configdrive
