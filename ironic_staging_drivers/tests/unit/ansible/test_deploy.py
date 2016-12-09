@@ -153,7 +153,7 @@ class TestAnsibleMethods(db_base.DbTestCase):
         execute_mock.assert_called_once_with(
             'env', 'ANSIBLE_CONFIG=/path/to/config',
             'ansible-playbook', '/path/to/playbooks/deploy', '-i',
-            ansible_deploy.INVENTORY_FILE, '-e', '{"foo": "bar"}',
+            ansible_deploy.INVENTORY_FILE, '-e', '{"ironic": {"foo": "bar"}}',
             '--tags=spam', '--skip-tags=ham',
             '--private-key=/path/to/key', '-vvv', '--timeout=100')
 
@@ -170,7 +170,7 @@ class TestAnsibleMethods(db_base.DbTestCase):
         execute_mock.assert_called_once_with(
             'env', 'ANSIBLE_CONFIG=/path/to/config',
             'ansible-playbook', '/path/to/playbooks/deploy', '-i',
-            ansible_deploy.INVENTORY_FILE, '-e', '{"foo": "bar"}',
+            ansible_deploy.INVENTORY_FILE, '-e', '{"ironic": {"foo": "bar"}}',
             '--private-key=/path/to/key')
 
     @mock.patch.object(com_utils, 'execute', return_value=('out', 'err'),
@@ -186,7 +186,7 @@ class TestAnsibleMethods(db_base.DbTestCase):
         execute_mock.assert_called_once_with(
             'env', 'ANSIBLE_CONFIG=/path/to/config',
             'ansible-playbook', '/path/to/playbooks/deploy', '-i',
-            ansible_deploy.INVENTORY_FILE, '-e', '{"foo": "bar"}',
+            ansible_deploy.INVENTORY_FILE, '-e', '{"ironic": {"foo": "bar"}}',
             '--private-key=/path/to/key', '-vvvv')
 
     @mock.patch.object(com_utils, 'execute',
@@ -206,15 +206,16 @@ class TestAnsibleMethods(db_base.DbTestCase):
         execute_mock.assert_called_once_with(
             'env', 'ANSIBLE_CONFIG=/path/to/config',
             'ansible-playbook', '/path/to/playbooks/deploy', '-i',
-            ansible_deploy.INVENTORY_FILE, '-e', '{"foo": "bar"}',
+            ansible_deploy.INVENTORY_FILE, '-e', '{"ironic": {"foo": "bar"}}',
             '--private-key=/path/to/key')
 
     def test__parse_partitioning_info(self):
         expected_info = {
-            'ironic_partitions':
-                [{'boot': 'yes', 'swap': 'no',
-                  'size_mib': INSTANCE_INFO['root_mb'],
-                  'name': 'root'}]}
+            'partition_info': {
+                'partitions': [
+                    {'boot': 'yes', 'swap': 'no',
+                     'size_mib': INSTANCE_INFO['root_mb'],
+                     'name': 'root'}]}}
 
         i_info = ansible_deploy._parse_partitioning_info(self.node)
 
@@ -227,12 +228,13 @@ class TestAnsibleMethods(db_base.DbTestCase):
         self.node.save()
 
         expected_info = {
-            'ironic_partitions':
-                [{'boot': 'yes', 'swap': 'no',
-                  'size_mib': INSTANCE_INFO['root_mb'],
-                  'name': 'root'},
-                 {'boot': 'no', 'swap': 'yes',
-                  'size_mib': 128, 'name': 'swap'}]}
+            'partition_info': {
+                'partitions': [
+                    {'boot': 'yes', 'swap': 'no',
+                     'size_mib': INSTANCE_INFO['root_mb'],
+                     'name': 'root'},
+                    {'boot': 'no', 'swap': 'yes',
+                     'size_mib': 128, 'name': 'swap'}]}}
 
         i_info = ansible_deploy._parse_partitioning_info(self.node)
 
@@ -247,15 +249,16 @@ class TestAnsibleMethods(db_base.DbTestCase):
         self.node.save()
 
         expected_info = {
-            'ironic_partitions':
-                [{'boot': 'yes', 'swap': 'no',
-                  'size_mib': INSTANCE_INFO['root_mb'],
-                  'name': 'root'},
-                 {'boot': 'no', 'swap': 'no',
-                  'size_mib': 128, 'name': 'ephemeral'}],
-            'ephemeral_format': 'ext4',
-            'preserve_ephemeral': 'yes'
-        }
+            'partition_info': {
+                'partitions': [
+                    {'boot': 'yes', 'swap': 'no',
+                     'size_mib': INSTANCE_INFO['root_mb'],
+                     'name': 'root'},
+                    {'boot': 'no', 'swap': 'no',
+                     'size_mib': 128, 'name': 'ephemeral'}],
+                'ephemeral_format': 'ext4',
+                'preserve_ephemeral': 'yes'
+            }}
 
         i_info = ansible_deploy._parse_partitioning_info(self.node)
 
@@ -280,7 +283,7 @@ class TestAnsibleMethods(db_base.DbTestCase):
                      ('other-uuid', '5.6.7.8', 'eggs', 'vikings')]
         ansible_vars = {"foo": "bar"}
         self.assertEqual(
-            {"ironic_nodes": [
+            {"nodes": [
                 {"name": "fake-uuid", "ip": '1.2.3.4',
                  "user": "spam", "extra": "ham"},
                 {"name": "other-uuid", "ip": '5.6.7.8',
@@ -291,7 +294,9 @@ class TestAnsibleMethods(db_base.DbTestCase):
     @mock.patch.object(ansible_deploy, '_calculate_memory_req', autospec=True,
                        return_value=2000)
     def test__prepare_variables(self, mem_req_mock):
-        expected = {"image": {"url": "http://image", "mem_req": 2000,
+        expected = {"image": {"url": "http://image",
+                              "source": "fake-image",
+                              "mem_req": 2000,
                               "disk_format": "qcow2",
                               "checksum": "md5:checksum"}}
         with task_manager.acquire(self.context, self.node.uuid) as task:
@@ -305,7 +310,9 @@ class TestAnsibleMethods(db_base.DbTestCase):
         i_info['image_checksum'] = 'sha256:checksum'
         self.node.instance_info = i_info
         self.node.save()
-        expected = {"image": {"url": "http://image", "mem_req": 2000,
+        expected = {"image": {"url": "http://image",
+                              "source": "fake-image",
+                              "mem_req": 2000,
                               "disk_format": "qcow2",
                               "checksum": "sha256:checksum"}}
         with task_manager.acquire(self.context, self.node.uuid) as task:
@@ -319,7 +326,9 @@ class TestAnsibleMethods(db_base.DbTestCase):
         i_info['configdrive'] = 'http://configdrive_url'
         self.node.instance_info = i_info
         self.node.save()
-        expected = {"image": {"url": "http://image", "mem_req": 2000,
+        expected = {"image": {"url": "http://image",
+                              "source": "fake-image",
+                              "mem_req": 2000,
                               "disk_format": "qcow2",
                               "checksum": "md5:checksum"},
                     'configdrive': {'type': 'url',
@@ -336,7 +345,9 @@ class TestAnsibleMethods(db_base.DbTestCase):
         self.node.instance_info = i_info
         self.node.save()
         self.config(tempdir='/path/to/tmpfiles')
-        expected = {"image": {"url": "http://image", "mem_req": 2000,
+        expected = {"image": {"url": "http://image",
+                              "source": "fake-image",
+                              "mem_req": 2000,
                               "disk_format": "qcow2",
                               "checksum": "md5:checksum"},
                     'configdrive': {'type': 'file',
