@@ -191,7 +191,7 @@ def _prepare_extra_vars(host_list, variables=None):
     nodes_var = []
     for node_uuid, ip, user, extra in host_list:
         nodes_var.append(dict(name=node_uuid, ip=ip, user=user, extra=extra))
-    extra_vars = dict(ironic_nodes=nodes_var)
+    extra_vars = dict(nodes=nodes_var)
     if variables:
         extra_vars.update(variables)
     return extra_vars
@@ -200,9 +200,10 @@ def _prepare_extra_vars(host_list, variables=None):
 def _run_playbook(name, extra_vars, key, tags=None, notags=None):
     """Execute ansible-playbook."""
     playbook = os.path.join(CONF.ansible.playbooks_path, name)
+    ironic_vars = {'ironic': extra_vars}
     args = [CONF.ansible.ansible_playbook_script, playbook,
             '-i', INVENTORY_FILE,
-            '-e', json.dumps(extra_vars),
+            '-e', json.dumps(ironic_vars),
             ]
 
     if CONF.ansible.config_file_path:
@@ -272,19 +273,20 @@ def _parse_partitioning_info(node):
         i_info['preserve_ephemeral'] = (
             'yes' if info['preserve_ephemeral'] else 'no')
 
-    i_info['ironic_partitions'] = partitions
-    return i_info
+    i_info['partitions'] = partitions
+    return {'partition_info': i_info}
 
 
 def _prepare_variables(task):
     node = task.node
     i_info = node.instance_info
-    image = {
-        'url': i_info['image_url'],
-        'mem_req': _calculate_memory_req(task),
-        'disk_format': i_info.get('image_disk_format'),
-    }
-    checksum = i_info.get('image_checksum')
+    image = {}
+    for i_key, i_value in i_info.items():
+        if i_key.startswith('image_'):
+            image[i_key[6:]] = i_value
+    image['mem_req'] = _calculate_memory_req(task)
+
+    checksum = image.get('checksum')
     if checksum:
         # NOTE(pas-ha) checksum can be in <algo>:<checksum> format
         # as supported by various Ansible modules, mostly good for
@@ -292,8 +294,7 @@ def _prepare_variables(task):
         # With no <algo> we take that instance_info is populated from Glance,
         # where API reports checksum as MD5 always.
         if ':' not in checksum:
-            checksum = 'md5:%s' % checksum
-        image['checksum'] = checksum
+            image['checksum'] = 'md5:%s' % checksum
     variables = {'image': image}
     configdrive = i_info.get('configdrive')
     if configdrive:

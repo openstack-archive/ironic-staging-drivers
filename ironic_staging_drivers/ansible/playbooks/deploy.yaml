@@ -9,7 +9,9 @@
 
 - hosts: ironic
   roles:
+    - role: rootdevice
     - role: deploy
+    - role: bootloader
   post_tasks:
     - name: flush disk state
       command: sync
