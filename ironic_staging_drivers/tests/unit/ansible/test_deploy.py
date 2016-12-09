@@ -147,7 +147,7 @@ class TestAnsibleMethods(db_base.DbTestCase):
     @mock.patch.object(os.path, 'join', return_value='/path/to/playbook',
                        autospec=True)
     def test__run_playbook(self, path_join_mock, execute_mock):
-        extra_vars = {"ironic_nodes": [{"name": self.node["uuid"],
+        extra_vars = {"nodes": [{"name": self.node["uuid"],
                       "ip": "127.0.0.1", "user": "test"}]}
 
         ansible_deploy._run_playbook('deploy', extra_vars, '/path/to/key')
@@ -155,7 +155,8 @@ class TestAnsibleMethods(db_base.DbTestCase):
         execute_mock.assert_called_once_with(
             'env', 'ANSIBLE_CONFIG=%s' % CONF.ansible.config_file_path,
             'ansible-playbook', '/path/to/playbook', '-i',
-            ansible_deploy.INVENTORY_FILE, '-e', json.dumps(extra_vars),
+            ansible_deploy.INVENTORY_FILE, '-e', json.dumps(
+                {"ironic": extra_vars}),
             '--private-key=/path/to/key', '-vvvv')
 
     @mock.patch.object(com_utils, 'execute', return_value=('out', 'err'),
@@ -163,7 +164,7 @@ class TestAnsibleMethods(db_base.DbTestCase):
     @mock.patch.object(os.path, 'join', return_value='/path/to/playbook',
                        autospec=True)
     def test__run_playbook_tags(self, path_join_mock, execute_mock):
-        extra_vars = {"ironic_nodes": [{"name": self.node["uuid"],
+        extra_vars = {"nodes": [{"name": self.node["uuid"],
                       "ip": "127.0.0.1", "user": "test"}]}
 
         ansible_deploy._run_playbook('deploy', extra_vars, '/path/to/key',
@@ -172,15 +173,17 @@ class TestAnsibleMethods(db_base.DbTestCase):
         execute_mock.assert_called_once_with(
             'env', 'ANSIBLE_CONFIG=%s' % CONF.ansible.config_file_path,
             'ansible-playbook', '/path/to/playbook', '-i',
-            ansible_deploy.INVENTORY_FILE, '-e', json.dumps(extra_vars),
+            ansible_deploy.INVENTORY_FILE, '-e', json.dumps(
+                {"ironic": extra_vars}),
             '--tags=wait', '--private-key=/path/to/key', '-vvvv')
 
     def test__parse_partitioning_info(self):
         expected_info = {
-            'ironic_partitions':
-                [{'boot': 'yes', 'swap': 'no',
-                  'size_mib': INSTANCE_INFO['root_mb'],
-                  'name': 'root'}]}
+            'partition_info': {
+                'partitions': [
+                    {'boot': 'yes', 'swap': 'no',
+                     'size_mib': INSTANCE_INFO['root_mb'],
+                     'name': 'root'}]}}
 
         i_info = ansible_deploy._parse_partitioning_info(self.node)
 
@@ -193,12 +196,13 @@ class TestAnsibleMethods(db_base.DbTestCase):
         self.node.save()
 
         expected_info = {
-            'ironic_partitions':
-                [{'boot': 'yes', 'swap': 'no',
-                  'size_mib': INSTANCE_INFO['root_mb'],
-                  'name': 'root'},
-                 {'boot': 'no', 'swap': 'yes',
-                  'size_mib': 128, 'name': 'swap'}]}
+            'partition_info': {
+                'partitions': [
+                    {'boot': 'yes', 'swap': 'no',
+                     'size_mib': INSTANCE_INFO['root_mb'],
+                     'name': 'root'},
+                    {'boot': 'no', 'swap': 'yes',
+                     'size_mib': 128, 'name': 'swap'}]}}
 
         i_info = ansible_deploy._parse_partitioning_info(self.node)
 
@@ -213,15 +217,16 @@ class TestAnsibleMethods(db_base.DbTestCase):
         self.node.save()
 
         expected_info = {
-            'ironic_partitions':
-                [{'boot': 'yes', 'swap': 'no',
-                  'size_mib': INSTANCE_INFO['root_mb'],
-                  'name': 'root'},
-                 {'boot': 'no', 'swap': 'no',
-                  'size_mib': 128, 'name': 'ephemeral'}],
-            'ephemeral_format': 'ext4',
-            'preserve_ephemeral': 'yes'
-        }
+            'partition_info': {
+                'partitions': [
+                    {'boot': 'yes', 'swap': 'no',
+                     'size_mib': INSTANCE_INFO['root_mb'],
+                     'name': 'root'},
+                    {'boot': 'no', 'swap': 'no',
+                     'size_mib': 128, 'name': 'ephemeral'}],
+                'ephemeral_format': 'ext4',
+                'preserve_ephemeral': 'yes'
+            }}
 
         i_info = ansible_deploy._parse_partitioning_info(self.node)
 
