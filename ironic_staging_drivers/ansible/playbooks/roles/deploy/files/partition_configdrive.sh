@@ -28,6 +28,8 @@
 
 # Takes one argument - block device
 
+set -e
+
 log() {
   echo "`basename $0`: $@"
 }
@@ -62,8 +64,7 @@ if [ $? = 0 ]; then
 else
 
   # Check if it is GPT partition and needs to be re-sized
-  partprobe $DEVICE print 2>&1 | grep "fix the GPT to use all of the space"
-  if [ $? = 0 ]; then
+  if [ `partprobe $DEVICE print 2>&1 | grep "fix the GPT to use all of the space"` ]; then
     #log "Fixing GPT to use all of the space on device $DEVICE"
     sgdisk -e $DEVICE #|| fail "move backup GPT data structures to the end of ${DEVICE}"
 
@@ -100,7 +101,7 @@ else
     fi
 
     #log "Adding configdrive partition to $DEVICE"
-    parted -a optimal -s -- $DEVICE mkpart primary ext2 $startlimit $endlimit #|| fail "creating configdrive on ${DEVICE}"
+    parted -a optimal -s -- $DEVICE mkpart primary fat32 $startlimit $endlimit #|| fail "creating configdrive on ${DEVICE}"
 
     # Find partition we just created
     # Dump all partitions, ignore empty ones, then get the last partition ID

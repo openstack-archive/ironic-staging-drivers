@@ -5,8 +5,11 @@ readonly target_disk=$1
 readonly root_part=$2
 readonly root_part_mount=/mnt/rootfs
 
-# We need to run partprobe to ensure all partitions are visible
+# We need to run partprobe to ensure all partitions are visible.
+# On some test environments this is too fast
+# and kernel does not have time to react to changes
 partprobe $target_disk
+sleep 5
 
 mkdir -p $root_part_mount
 
