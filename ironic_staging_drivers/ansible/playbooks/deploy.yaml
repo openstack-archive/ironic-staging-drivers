@@ -9,6 +9,10 @@
 
 - hosts: ironic
   roles:
-    - role: deploy
-    - role: shutdown
-      tags: shutdown
+    - discover
+    - prepare
+    - deploy
+    - configure
+  post_tasks:
+    - name: flush disk state
+      command: sync

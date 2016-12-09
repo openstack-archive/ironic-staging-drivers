@@ -1,0 +1,6 @@
+---
+- include: add-ironic-nodes.yaml
+
+- hosts: ironic
+  roles:
+    - shutdown
