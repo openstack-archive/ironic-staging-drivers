@@ -108,6 +108,7 @@ METRICS = metrics_utils.get_metrics_logger(__name__)
 
 DEFAULT_PLAYBOOKS = {
     'deploy': 'deploy.yaml',
+    'shutdown': 'shutdown.yaml',
     'clean': 'clean.yaml'
 }
 DEFAULT_CLEAN_STEPS = 'clean_steps.yaml'
@@ -126,6 +127,10 @@ OPTIONAL_PROPERTIES = {
     'ansible_deploy_playbook': _('Name of the Ansible playbook used for '
                                  'deployment. Default is %s. Optional.'
                                  ) % DEFAULT_PLAYBOOKS['deploy'],
+    'ansible_shutdown_playbook': _('Name of the Ansible playbook used to '
+                                   'power off the node in-band. '
+                                   'Default is %s. Optional.'
+                                   ) % DEFAULT_PLAYBOOKS['shutdown'],
     'ansible_clean_playbook': _('Name of the Ansible playbook used for '
                                 'cleaning. Default is %s. Optional.'
                                 ) % DEFAULT_PLAYBOOKS['clean'],
@@ -185,7 +190,7 @@ def _prepare_extra_vars(host_list, variables=None):
     nodes_var = []
     for node_uuid, ip, user, extra in host_list:
         nodes_var.append(dict(name=node_uuid, ip=ip, user=user, extra=extra))
-    extra_vars = dict(ironic_nodes=nodes_var)
+    extra_vars = dict(nodes=nodes_var)
     if variables:
         extra_vars.update(variables)
     return extra_vars
@@ -194,9 +199,10 @@ def _prepare_extra_vars(host_list, variables=None):
 def _run_playbook(name, extra_vars, key, tags=None, notags=None):
     """Execute ansible-playbook."""
     playbook = os.path.join(CONF.ansible.playbooks_path, name)
+    ironic_vars = {'ironic': extra_vars}
     args = [CONF.ansible.ansible_playbook_script, playbook,
             '-i', INVENTORY_FILE,
-            '-e', json.dumps(extra_vars),
+            '-e', json.dumps(ironic_vars),
             ]
 
     if CONF.ansible.config_file_path:
@@ -240,45 +246,69 @@ def _parse_partitioning_info(node):
     i_info = {}
 
     partitions = []
-    root_partition = {'name': 'root',
-                      'size_mib': info['root_mb'],
-                      'boot': 'yes',
-                      'swap': 'no'}
-    partitions.append(root_partition)
+    i_info['label'] = deploy_utils.get_disk_label(node) or 'msdos'
+
+    # prepend 1MiB bios_grub partition for GPT so that grub(2) installs
+    if i_info['label'] == 'gpt':
+        bios_partition = {'name': 'bios',
+                          'size': 1,
+                          'unit': 'MiB',
+                          'flags': {'bios_grub': 'yes'}}
+        partitions.append(bios_partition)
+
+    ephemeral_mb = info['ephemeral_mb']
+    if ephemeral_mb:
+        i_info['ephemeral_format'] = info['ephemeral_format']
+        ephemeral_partition = {'name': 'ephemeral',
+                               'size': ephemeral_mb,
+                               'unit': 'MiB',
+                               'format': i_info['ephemeral_format']}
+        partitions.append(ephemeral_partition)
+
+        i_info['preserve_ephemeral'] = (
+            'yes' if info['preserve_ephemeral'] else 'no')
 
     swap_mb = info['swap_mb']
     if swap_mb:
         swap_partition = {'name': 'swap',
-                          'size_mib': swap_mb,
-                          'boot': 'no',
-                          'swap': 'yes'}
+                          'size': swap_mb,
+                          'unit': 'MiB',
+                          'format': 'linux-swap'}
         partitions.append(swap_partition)
 
-    ephemeral_mb = info['ephemeral_mb']
-    if ephemeral_mb:
-        ephemeral_partition = {'name': 'ephemeral',
-                               'size_mib': ephemeral_mb,
-                               'boot': 'no',
-                               'swap': 'no'}
-        partitions.append(ephemeral_partition)
+    # pre-create partition for configdrive
+    configdrive = info.get('configdrive')
+    if configdrive:
+        configdrive_partition = {'name': 'configdrive',
+                                 'size': 64,
+                                 'unit': 'MiB',
+                                 'format': 'fat32'}
+        partitions.append(configdrive_partition)
 
-        i_info['ephemeral_format'] = info['ephemeral_format']
-        i_info['preserve_ephemeral'] = (
-            'yes' if info['preserve_ephemeral'] else 'no')
+    # NOTE(pas-ha) make the root partition last so that
+    # e.g. cloud-init can grow it on first start
+    root_partition = {'name': 'root',
+                      'size': info['root_mb'],
+                      'unit': 'MiB'}
+    if i_info['label'] == 'msdos':
+        root_partition['flags'] = {'boot': 'yes'}
 
-    i_info['ironic_partitions'] = partitions
-    return i_info
+    partitions.append(root_partition)
+
+    i_info['partitions'] = partitions
+    return {'partition_info': i_info}
 
 
 def _prepare_variables(task):
     node = task.node
     i_info = node.instance_info
-    image = {
-        'url': i_info['image_url'],
-        'mem_req': _calculate_memory_req(task),
-        'disk_format': i_info.get('image_disk_format'),
-    }
-    checksum = i_info.get('image_checksum')
+    image = {}
+    for i_key, i_value in i_info.items():
+        if i_key.startswith('image_'):
+            image[i_key[6:]] = i_value
+    image['mem_req'] = _calculate_memory_req(task)
+
+    checksum = image.get('checksum')
     if checksum:
         # NOTE(pas-ha) checksum can be in <algo>:<checksum> format
         # as supported by various Ansible modules, mostly good for
@@ -286,8 +316,7 @@ def _prepare_variables(task):
         # With no <algo> we take that instance_info is populated from Glance,
         # where API reports checksum as MD5 always.
         if ':' not in checksum:
-            checksum = 'md5:%s' % checksum
-        image['checksum'] = checksum
+            image['checksum'] = 'md5:%s' % checksum
     variables = {'image': image}
     configdrive = i_info.get('configdrive')
     if configdrive:
@@ -403,17 +432,12 @@ class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
 
     def _deploy(self, task, node_address):
         """Internal function for deployment to a node."""
-        notags = ['shutdown']
-        if CONF.ansible.use_ramdisk_callback:
-            notags.append('wait')
+        notags = ['wait'] if CONF.ansible.use_ramdisk_callback else []
         node = task.node
         LOG.debug('IP of node %(node)s is %(ip)s',
                   {'node': node.uuid, 'ip': node_address})
         variables = _prepare_variables(task)
-        iwdi = node.driver_internal_info.get('is_whole_disk_image')
-        if iwdi:
-            notags.append('parted')
-        else:
+        if not node.driver_internal_info.get('is_whole_disk_image'):
             variables.update(_parse_partitioning_info(task.node))
         playbook, user, key = _parse_ansible_driver_info(task.node)
         node_list = [(node.uuid, node_address, user, node.extra)]
@@ -639,11 +663,10 @@ class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
                             _("Failed to get node IP address of node %s") %
                             node.uuid)
                     playbook, user, key = _parse_ansible_driver_info(
-                        node)
+                        node, action='shutdown')
                     node_list = [(node.uuid, node_address, user, node.extra)]
                     extra_vars = _prepare_extra_vars(node_list)
-                    _run_playbook(playbook, extra_vars, key,
-                                  tags=['shutdown'])
+                    _run_playbook(playbook, extra_vars, key)
                     _wait_until_powered_off(task)
                 except Exception as e:
                     LOG.warning(
