@@ -1,0 +1,54 @@
+---
+features:
+  - |
+    Ansible-deploy driver has considerably changed in terms of playbook
+    structure and accepted incoming variables.
+
+    + all info passed into Ansible playbooks from ironic is now available in
+      the playbooks as elements of ``ironic`` dictionary to better
+      differentiate those from other vars possibly created/set
+      inside playbooks.
+
+    + any field of node's instance_info having a form of ``image_<field>``
+      is now available in playbooks as ``ironic.image.<field>`` variable.
+
+    + ``parted`` tag in playbooks is removed and instead differentiation
+      between partition and whole-disk imaged is being done based on
+      ``ironic.image.type`` variable value.
+
+    + ``shutdown`` tag is removed, and soft power-off is moved to a separate
+      playbook, defined by new optional ``driver_info`` field
+      ``ansible_shutdown_playbook`` (the default ``shutdown.yaml``
+      is provided in the code tree).
+
+    + default ``deploy`` role is split into smaller roles,
+      each targeting a separate stage of deployment process
+      to faciliate customiation and re-use
+
+      - ``discover`` - e.g. set root device and image target
+      - ``prepare`` - if needed, prepare system, e.g. create partitions
+      - ``deploy`` - download/convert/write user image and configdrive
+      - ``configure`` - post-deployment steps, e.g. installing the bootloader
+
+    + ``parted`` module for Ansible is rewritten to be cleaner and more stable
+
+      - changed accepted module arguments
+      - added support for units (MiB and % for now)
+      - added more validations
+      - left support for msdos and gpt partition tables only
+      - partitions are created one by one, and actual block devices created
+        are searched for and reported.
+
+    + partitioning scheme closer resembles what's being done by IPA
+
+      - for partition images the root partition is the last one created
+        so that it can grow with e.g. when using cloud-init's growroot
+      - for whole-disk images, configdrive is created as far as possible
+
+upgrade:
+  - |
+    Ansible-deploy driver has considerably changed in terms of playbook
+    structure and accepted incoming variables.
+
+    **Any out-of-tree playbooks written for previous versions are incompatible
+    with this release and must be changed at least to accept new variables!**
