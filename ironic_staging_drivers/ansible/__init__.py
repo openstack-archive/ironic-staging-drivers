@@ -12,6 +12,7 @@
 
 from ironic.drivers import base
 from ironic.drivers.modules import fake
+from ironic.drivers.modules import inspector
 from ironic.drivers.modules import ipmitool
 from ironic.drivers.modules import pxe
 from ironic.drivers.modules import ssh
@@ -31,6 +32,8 @@ class AnsibleAndSSHDriver(base.BaseDriver):
         self.boot = pxe.PXEBoot()
         self.deploy = ansible_deploy.AnsibleDeploy()
         self.management = ssh.SSHManagement()
+        self.inspect = inspector.Inspector.create_if_enabled(
+            'AgentAndSSHDriver')
 
 
 class AnsibleAndIPMIToolDriver(base.BaseDriver):
@@ -42,6 +45,9 @@ class AnsibleAndIPMIToolDriver(base.BaseDriver):
         self.deploy = ansible_deploy.AnsibleDeploy()
         self.management = ipmitool.IPMIManagement()
         self.vendor = ipmitool.VendorPassthru()
+        self.inspect = inspector.Inspector.create_if_enabled(
+            'AgentAndIPMINativeDriver')
+        self.console = ipmitool.IPMISocatConsole()
 
 
 class FakeAnsibleDriver(base.BaseDriver):
