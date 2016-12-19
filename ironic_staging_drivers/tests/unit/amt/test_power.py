@@ -16,7 +16,7 @@ Test class for AMT ManagementInterface
 """
 
 from ironic.common import boot_devices
-from ironic.common import exception
+from ironic.common import exception as ironic_exception
 from ironic.common import states
 from ironic.conductor import task_manager
 from ironic.tests.unit.conductor import mgr_utils
@@ -25,10 +25,12 @@ from ironic.tests.unit.objects import utils as obj_utils
 import mock
 from oslo_config import cfg
 
+
 from ironic_staging_drivers.amt import common as amt_common
 from ironic_staging_drivers.amt import management as amt_mgmt
 from ironic_staging_drivers.amt import power as amt_power
 from ironic_staging_drivers.amt import resource_uris
+from ironic_staging_drivers.common import exception
 from ironic_staging_drivers.tests.unit.amt import utils as test_utils
 
 INFO_DICT = test_utils.get_test_amt_info()
@@ -168,7 +170,7 @@ class AMTPowerInteralMethodsTestCase(db_base.DbTestCase):
         target_state = 'fake-state'
         with task_manager.acquire(self.context, self.node.uuid,
                                   shared=True) as task:
-            self.assertRaises(exception.InvalidParameterValue,
+            self.assertRaises(ironic_exception.InvalidParameterValue,
                               amt_power._set_and_wait, task, target_state)
 
     @mock.patch.object(amt_power, '_power_status', spec_set=True,
@@ -183,7 +185,7 @@ class AMTPowerInteralMethodsTestCase(db_base.DbTestCase):
         mock_sps.return_value = exception.AMTFailure('x')
         with task_manager.acquire(self.context, self.node.uuid,
                                   shared=True) as task:
-            self.assertRaises(exception.PowerStateFailure,
+            self.assertRaises(ironic_exception.PowerStateFailure,
                               amt_power._set_and_wait, task, target_state)
             mock_sps.assert_called_with(task.node, states.POWER_ON)
             mock_ps.assert_called_with(task.node)
@@ -245,8 +247,8 @@ class AMTPowerTestCase(db_base.DbTestCase):
         with task_manager.acquire(self.context, self.node.uuid,
                                   shared=True) as task:
             mock_drvinfo.side_effect = iter(
-                [exception.InvalidParameterValue('x')])
-            self.assertRaises(exception.InvalidParameterValue,
+                [ironic_exception.InvalidParameterValue('x')])
+            self.assertRaises(ironic_exception.InvalidParameterValue,
                               task.driver.power.validate,
                               task)
 
@@ -276,8 +278,9 @@ class AMTPowerTestCase(db_base.DbTestCase):
         with task_manager.acquire(self.context, self.node.uuid,
                                   shared=False) as task:
             pstate = states.POWER_ON
-            mock_saw.side_effect = iter([exception.PowerStateFailure('x')])
-            self.assertRaises(exception.PowerStateFailure,
+            mock_saw.side_effect = iter(
+                [ironic_exception.PowerStateFailure('x')])
+            self.assertRaises(ironic_exception.PowerStateFailure,
                               task.driver.power.set_power_state,
                               task, pstate)
             mock_saw.assert_called_once_with(task, pstate)
