@@ -3,7 +3,7 @@
 
 IRONIC_STAGING_DRIVERS_DIR=$DEST/ironic-staging-drivers
 IRONIC_DRIVERS_EXCLUDED_DIRS='tests common'
-
+IRONIC_STAGING_DRIVER=${IRONIC_STAGING_DRIVER:-}
 
 function update_ironic_enabled_drivers {
     local saveIFS
@@ -49,6 +49,58 @@ function install_drivers_dependencies {
     done
 }
 
+function set_ironic_testing_driver {
+    if [[ "$IRONIC_STAGING_DRIVER" == "pxe_ipmitool_ansible" && \
+          "$IRONIC_DEPLOY_DRIVER" == "agent_ipmitool" && \
+          "$IRONIC_RAMDISK_TYPE" == "tinyipa" ]]; then
+        echo_summary "Setting nodes to use ${IRONIC_STAGING_DRIVER} driver"
+        set_ansible_deploy_driver
+    fi
+}
+
+function set_ansible_deploy_driver {
+    local tinyipa_ramdisk_name
+    local ansible_key_file
+    local ansible_ramdisk_id
+
+    # ensure the tinyipa ramdisk is present in Glance
+    tinyipa_ramdisk_name=$(openstack --os-cloud devstack-admin image show ${IRONIC_DEPLOY_RAMDISK_ID} -f value -c name)
+    if [ -z $tinyipa_ramdisk_name ]; then
+        die $LINENO "Failed to find ironic deploy ramdisk ${IRONIC_DEPLOY_RAMDISK_ID}"
+    fi
+
+    cd $IRONIC_STAGING_DRIVERS_DIR/imagebuild/tinyipa-ansible
+    # download original tinyipa ramdisk from Glance
+    openstack --os-cloud devstack-admin image save ${IRONIC_DEPLOY_RAMDISK_ID} --file ${tinyipa_ramdisk_name}
+    export TINYIPA_RAMDISK_FILE="${PWD}/${tinyipa_ramdisk_name}"
+    # generate SSH keys for deploy ramdisk and ansible driver
+    mkdir -p ${IRONIC_DATA_DIR}/ssh_keys
+    ansible_key_file="${IRONIC_DATA_DIR}/ssh_keys/ansible_key"
+    ssh-keygen -q -t rsa -N "" -f ${ansible_key_file}
+    export SSH_PUBLIC_KEY=${ansible_key_file}.pub
+    # rebuild ramdisk, produces ansible-${tinyipa_ramdisk_name} file
+    make
+    # upload rebuilt ramdisk to Glance
+    ansible_ramdisk_id=$(openstack --os-cloud devstack-admin image create "ansible-${tinyipa_ramdisk_name}" \
+        --file "${PWD}/ansible-${tinyipa_ramdisk_name}" \
+        --disk-format ari --container-format ari \
+        --public \
+        -f value -c id)
+
+    # set nodes to use ansible_deploy driver with uploaded ramdisk
+    # using pxe_ipmitool_ansible instead of agent_ipmitool
+    for node in $(openstack --os-cloud devstack baremetal node list -f value -c UUID); do
+        openstack --os-cloud devstack-admin baremetal node set $node \
+            --driver ${IRONIC_STAGING_DRIVER} \
+            --driver-info deploy_ramdisk=$ansible_ramdisk_id \
+            --driver-info ansible_deploy_username=tc \
+            --driver-info ansible_deploy_key_file=$ansible_key_file
+    done
+    # TODO(pas-ha) setup logging ansible callback plugin to log to specific file
+    # for now all ansible logs are seen in ir-cond logs when run in debug logging mode
+    # as stdout returned by processutils.execute
+}
+
 echo_summary "ironic-staging-drivers plugin.sh was called..."
 
 if is_service_enabled ir-api ir-cond; then
@@ -60,5 +112,9 @@ if is_service_enabled ir-api ir-cond; then
     elif [[ "$1" == "stack" && "$2" == "post-config" ]]; then
         echo_summary "Configuring Ironic-staging-drivers"
         update_ironic_enabled_drivers
+    elif [[ "$1" == "stack" && "$2" == "extra" ]]; then
+        if [ -n $IRONIC_STAGING_DRIVER ]; then
+            set_ironic_testing_driver
+        fi
     fi
 fi
