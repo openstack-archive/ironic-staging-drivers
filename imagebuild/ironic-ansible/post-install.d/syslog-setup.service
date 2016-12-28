@@ -1,0 +1,10 @@
+[Unit]
+Description=Setup Remote Logging
+Before=syslog.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/syslog-setup.sh
+
+[Install]
+WantedBy=multi-user.target
