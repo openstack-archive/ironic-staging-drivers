@@ -1,1 +1,4 @@
 rsyslog:
+linux-image-generic:
+python-requests:
+lvm2:
