@@ -1,0 +1,44 @@
+#!/bin/bash
+
+if [ "${DIB_DEBUG_TRACE:-0}" -gt 0 ]; then
+    set -x
+fi
+set -eu
+set -o pipefail
+
+if [ $DISTRO_NAME = 'ubuntu' ] ; then
+
+    # Purge unneeded packages
+    install-packages -e busybox \
+                        ccache \
+                        gcc \
+                        freeipmi-common \
+                        open-iscsi \
+                        rsync \
+                        tgt \
+                        genisoimage
+
+    # Cleanup *-dev packages
+    apt list --installed 2>/dev/null | awk -F '/' '$1 ~ /.*-dev$/ {print $1}' | xargs apt purge -y
+
+    apt autoremove -y
+
+    # Cleanup apt
+    rm -r /var/cache/apt /var/lib/apt
+
+    # Remove locales
+    rm /etc/locale.gen
+    rm -r /usr/share/locale/*
+    find /usr/share/i18n/locales -mindepth 1 -maxdepth 1 -type f ! -name 'C' ! -name 'POSIX' -exec rm {} \;
+
+    # Remove ipa sources
+    find /usr/share/ironic-python-agent -mindepth 1 -maxdepth 1 ! -name 'venv' -exec rm -r {} \;
+
+    # Remove unneeded kernel modules
+    rm -r /lib/modules/*/kernel/sound \
+          /lib/modules/*/kernel/drivers/net/wireless \
+          /lib/modules/*/kernel/drivers/media
+
+    # Remove old logs
+    rm -rf /var/log/*
+fi
