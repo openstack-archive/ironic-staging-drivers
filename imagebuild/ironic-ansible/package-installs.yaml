@@ -1,1 +1,4 @@
 openssh-server:
+rsyslog:
+linux-image-generic:
+python-requests:
