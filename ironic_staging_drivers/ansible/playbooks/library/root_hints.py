@@ -13,6 +13,38 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+# Supported hints:
+# "model" (STRING): device identifier
+# "vendor" (STRING): device vendor
+# "serial" (STRING): disk serial number
+# "size" (INT): size of the device in GiB
+# "wwn" (STRING): unique storage identifier
+# "wwn_with_extension" (STRING): unique storage identifier with the vendor
+# extension appended
+# "wwn_vendor_extension" (STRING): unique vendor storage identifier
+# "rotational" (BOOLEAN): whether it’s a rotational device or not
+# "name" (STRING): the device name
+
+# Example of ansible device facts:
+# "ansible_devices": {
+#     "sda": {
+#         "model": "ST1000DM003-1SB1",
+#         "removable": "0",
+#         "rotational": "1",
+#         "sas_address": null,
+#         "sas_device_handle": null,
+#         "scheduler_mode": "deadline",
+#         "sectors": "1953525168",
+#         "sectorsize": "512",
+#         "size": "931.51 GB",
+#         "support_discard": "0",
+#         "vendor": "ATA"
+#     }
+# }
+
+from ironic_lib import utils as il_utils
+from oslo_utils import strutils
+
 GIB = 1 << 30
 
 EXTRA_PARAMS = set(['wwn', 'serial', 'wwn_with_extension',
@@ -26,39 +58,28 @@ def size_gib(device_info):
     sectors = device_info.get('sectors')
     sectorsize = device_info.get('sectorsize')
     if sectors is None or sectorsize is None:
-        return '0'
+        return
 
-    return str((int(sectors) * int(sectorsize)) // GIB)
-
-
-def merge_devices_info(devices, devices_wwn):
-    merged_info = devices.copy()
-    for device in merged_info:
-        if device in devices_wwn:
-            merged_info[device].update(devices_wwn[device])
-
-        # replace size
-        merged_info[device]['size'] = size_gib(merged_info[device])
-
-    return merged_info
+    return (int(sectors) * int(sectorsize)) // GIB
 
 
-def root_hint(hints, devices):
-    hint = None
-    name = hints.pop('name', None)
-    for device in devices:
-        for key in hints:
-            if hints[key] != devices[device].get(key):
-                break
-        else:
-            # If multiple hints are specified, a device must satisfy all
-            # the hints
-            dev_name = '/dev/' + device
-            if name is None or name == dev_name:
-                hint = dev_name
-                break
+def create_devices_list(devices, devices_wwn):
+    dev_list = []
+    for name, info in devices.items():
+        merged_info = {'name': '/dev/' + name}
+        merged_info['model'] = info.get('model')
+        merged_info['vendor'] = info.get('vendor')
+        rotational = info.get('rotational')
+        if rotational is not None:
+            rotational = strutils.bool_from_string(rotational, strict=True)
+        merged_info['rotational'] = rotational
+        if name in devices_wwn:
+            merged_info.update(devices_wwn[name])
 
-    return hint
+        merged_info['size'] = size_gib(info)
+        dev_list.append(merged_info)
+
+    return dev_list
 
 
 def main():
@@ -81,15 +102,20 @@ def main():
                              ' module) are set but this information can not be'
                              ' collected. Extra hints: %s' % ', '.join(extra))
 
-    devices_info = merge_devices_info(devices, devices_wwn or {})
-    hint = root_hint(hints, devices_info)
+    devices_list = create_devices_list(devices, devices_wwn or {})
 
-    if hint is None:
+    device = None
+    try:
+        device = il_utils.match_root_device_hints(devices_list, hints)
+    except ValueError:
+        pass
+
+    if device is None:
         module.fail_json(msg='Root device hints are set, but none of the '
                          'devices satisfy them. Collected devices info: %s'
-                         % devices_info)
+                         % devices_list)
 
-    ret_data = {'ansible_facts': {'ironic_root_device': hint}}
+    ret_data = {'ansible_facts': {'ironic_root_device': device['name']}}
     module.exit_json(**ret_data)
 
 
