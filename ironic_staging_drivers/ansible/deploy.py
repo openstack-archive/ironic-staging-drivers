@@ -301,35 +301,18 @@ def _parse_partitioning_info(node):
 
 
 def _parse_root_device_hints(node):
-    """Convert string with hints to dict. """
+    """Validate root device hints. """
     root_device = node.properties.get('root_device')
     if not root_device:
         return {}
     try:
-        parsed_hints = irlib_utils.parse_root_device_hints(root_device)
+        irlib_utils.parse_root_device_hints(root_device)
     except ValueError as e:
         raise exception.InvalidParameterValue(
             _('Failed to validate the root device hints for node %(node)s. '
               'Error: %(error)s') % {'node': node.uuid, 'error': e})
-    root_device_hints = {}
-    advanced = {}
-    for hint, value in parsed_hints.items():
-        if isinstance(value, six.string_types):
-            if value.startswith('== '):
-                root_device_hints[hint] = int(value[3:])
-            elif value.startswith('s== '):
-                root_device_hints[hint] = urlparse.unquote(value[4:])
-            else:
-                advanced[hint] = value
-        else:
-            root_device_hints[hint] = value
-    if advanced:
-        raise exception.InvalidParameterValue(
-            _('Ansible-deploy does not support advanced root device hints '
-              'based on oslo.utils operators. '
-              'Present advanced hints for node %(node)s are %(hints)s.') % {
-                  'node': node.uuid, 'hints': advanced})
-    return root_device_hints
+
+    return root_device
 
 
 def _prepare_variables(task):

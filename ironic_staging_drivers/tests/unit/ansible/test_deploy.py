@@ -294,35 +294,14 @@ class TestAnsibleMethods(db_base.DbTestCase):
             ansible_deploy._prepare_extra_vars(host_list, ansible_vars))
 
     def test__parse_root_device_hints(self):
-        hints = {"wwn": "fake wwn", "size": "12345", "rotational": True}
-        expected = {"wwn": "fake wwn", "size": 12345, "rotational": True}
+        hints = {"wwn": "fake wwn", "size": 12345, "rotational": True}
         props = self.node.properties
         props['root_device'] = hints
         self.node.properties = props
         self.node.save()
         with task_manager.acquire(self.context, self.node.uuid) as task:
             self.assertEqual(
-                expected, ansible_deploy._parse_root_device_hints(task.node))
-
-    def test__parse_root_device_hints_fail_advanced(self):
-        hints = {"wwn": "s!= fake wwn",
-                 "size": ">= 12345",
-                 "name": "<or> spam <or> ham",
-                 "rotational": True}
-        expected = {"wwn": "s!= fake%20wwn",
-                    "name": "<or> spam <or> ham",
-                    "size": ">= 12345"}
-        props = self.node.properties
-        props['root_device'] = hints
-        self.node.properties = props
-        self.node.save()
-        with task_manager.acquire(self.context, self.node.uuid) as task:
-            exc = self.assertRaises(
-                exception.InvalidParameterValue,
-                ansible_deploy._parse_root_device_hints, task.node)
-            for key, value in expected.items():
-                self.assertIn(six.text_type(key), six.text_type(exc))
-                self.assertIn(six.text_type(value), six.text_type(exc))
+                hints, ansible_deploy._parse_root_device_hints(task.node))
 
     @mock.patch.object(ansible_deploy, '_calculate_memory_req', autospec=True,
                        return_value=2000)
