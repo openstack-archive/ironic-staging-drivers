@@ -1,0 +1,5 @@
+---
+features:
+  - Add oslo operators support for root device hints in ansible deploy driver,
+    in accordance with documentation
+    http://docs.openstack.org/project-install-guide/baremetal/draft/.
