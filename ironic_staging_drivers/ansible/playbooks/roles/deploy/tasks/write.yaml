@@ -10,7 +10,7 @@
   stream_url:
     url: "{{ image.url }}"
     dest: "{{ ironic_image_target }}"
-    checksum: "md5:{{ image.checksum }}"
+    checksum: "{{ image.checksum }}"
   async: 600
   poll: 15
   when: "{{ image.disk_format == 'raw' }}"
