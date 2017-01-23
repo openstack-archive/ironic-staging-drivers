@@ -1,2 +1,4 @@
+- include: mounts.yaml
+  when: "{{ ironic.image.type | default('whole-disk-image') == 'partition' }}"
 - include: grub.yaml
   when: "{{ ironic.image.type | default('whole-disk-image') == 'partition' }}"
