@@ -1,4 +1,8 @@
-- name: wipe partition metadata
+- name: wipe partitions and disks metadata
+  become: yes
+  script: clean.sh
+
+- name: wipe partition table metadata again
   become: yes
   command: sgdisk -Z /dev/{{ item }}
   with_items: "{{ ansible_devices }}"
