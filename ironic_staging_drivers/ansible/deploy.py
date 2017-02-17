@@ -12,7 +12,7 @@
 # under the License.
 
 """
-Ansible deploy driver
+Ansible deploy driver - use Ansible playbooks for node deployment and cleaning
 """
 
 import json
