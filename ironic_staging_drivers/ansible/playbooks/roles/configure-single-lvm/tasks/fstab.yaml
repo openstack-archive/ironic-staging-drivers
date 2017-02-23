@@ -1,0 +1,35 @@
+- name: find data for LVM partitions
+  become: yes
+  command: "lsblk -Jo uuid,fstype /dev/system/{{ item.key }}"
+  with_dict: "{{ lvm_partitions }}"
+  register: lsblk_lvms
+
+- name: find data of boot partition
+  become: yes
+  command: "lsblk -Jo uuid,fstype /dev/{{ ironic_base_partitions.results[0].created.boot }}"
+  register: lsblk_boot
+
+- name: remove old fstab
+  become: yes
+  file:
+    path: /tmp/rootfs/etc/fstab
+    state: absent
+
+- name: add LVM volumes to fstab
+  become: yes
+  mount:
+    fstab: /tmp/rootfs/etc/fstab
+    state: present
+    name: "{{ item.item.value.mount }}"
+    fstype: "{{ (item.stdout | from_json).blockdevices.0.fstype }}"
+    src: "UUID={{ (item.stdout | from_json).blockdevices.0.uuid }}"
+  with_items: "{{ lsblk_lvms.results }}"
+
+- name: add boot partition to fstab
+  become: yes
+  mount:
+    fstab: /tmp/rootfs/etc/fstab
+    state: present
+    name: /boot
+    fstype: "{{ (lsblk_boot.stdout | from_json).blockdevices.0.fstype }}"
+    src: "UUID={{ (lsblk_boot.stdout | from_json).blockdevices.0.uuid }}"

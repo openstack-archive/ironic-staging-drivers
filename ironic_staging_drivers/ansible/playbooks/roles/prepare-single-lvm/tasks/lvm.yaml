@@ -1,0 +1,79 @@
+- name: parse partitioning info from image
+  set_fact:
+    lvm_partitions: "{{ ironic.image.properties.lvm_partitions }}"
+
+- name: assert assumptions on LVM partitions
+  assert:
+    that:
+      - "lvm_partitions.root is defined"
+      - "lvm_partitions.boot is undefined"
+    msg: "LVM partitions metadata is misformatted - 'root' must be defined and 'boot' not defined"
+
+# NOTE(pas-ha) it seems cloud-init can not read configdrive data from LVM volume
+- name: setup a single boot partition + configdrive + the rest
+  become: yes
+  ironic_parted:
+    device: "/dev/{{ item.key }}"
+    label: msdos
+    partitions:
+      - name: boot
+        size: 100
+        unit: MiB
+        format: ext2
+      - name: configdrive
+        size: 64
+        unit: MiB
+        format: fat32
+      - name: disk
+        size: "{{ (item.value.sectorsize | int) * (item.value.sectors| int) // 1024 // 1024 - 100 - 64 - 2 }}"
+        unit: MiB
+  with_dict: "{{ ansible_devices }}"
+  register: ironic_base_partitions
+
+# NOTE(pas-ha) list of /dev/{{ base_partitions[*].created.disk }}
+- name: store list of created 'disk' block devices to plug as PVs to single LVM
+  set_fact:
+    pvs_list: "{{ pvs_list|default([]) + [ '/dev/' + item.created.disk ] }}"
+  with_items: "{{ ironic_base_partitions.results }}"
+
+- name: plug all rests of disks to single LVM volume group
+  become: yes
+  lvg:
+    state: present
+    vg: system
+    pvs: "{{ pvs_list }}"
+
+- name: create lvm volumes for partitions
+  become: yes
+  lvol:
+    active: yes
+    state: present
+    lv: "{{ item.key }}"
+    vg: system
+    size: "{{ item.value.size }}"
+  with_dict: "{{ lvm_partitions }}"
+
+- name: format lvm volumes if requested
+  become: yes
+  filesystem:
+    dev: /dev/system/{{ item.key }}
+    fstype: "{{ item.value.fstype }}"
+    force: yes
+  when: "{{ item.value.fstype is defined }}"
+  with_dict: "{{ lvm_partitions }}"
+
+- name: format boot partitions
+  become: yes
+  filesystem:
+    dev: "/dev/{{ item }}"
+    fstype: ext2
+    force: yes
+  with_items: "{{ ironic_base_partitions.results | map(attribute='created.boot') | list }}"
+
+- name: reset image target
+  set_fact:
+    ironic_image_target: /dev/system/root
+
+- name: set target block device for configdrive
+  set_fact:
+    ironic_configdrive_target: "/dev/{{ ironic_base_partitions.results.0.created.configdrive }}"

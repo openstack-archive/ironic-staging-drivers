@@ -1,0 +1,60 @@
+- name: create tmp mount point for root
+  file:
+    state: directory
+    path: /tmp/rootfs
+
+- name: create tmp mount point for boot
+  file:
+    state: directory
+    path: /tmp/boot
+
+- name: mount user image root
+  become: yes
+  command: mount {{ ironic_image_target }} /tmp/rootfs
+
+- name: mount user image boot
+  become: yes
+  command: mount /dev/{{ ironic_base_partitions.results[0].created.boot }} /tmp/boot
+
+- name: copy over content from rootfs/boot to separate boot
+  become: yes
+  shell: "cp -aR /tmp/rootfs/boot/* /tmp/boot"
+
+- name: unmount separate boot
+  become: yes
+  command: umount /tmp/boot
+
+- name: re-mount separate boot into rootfs
+  become: yes
+  command: mount /dev/{{ ironic_base_partitions.results[0].created.boot }} /tmp/rootfs/boot
+
+- name: create mounts for tmp lvm volumes
+  file:
+    state: directory
+    path: /tmp/{{ item.key }}
+  when: "{{ item.key != 'root' }}"
+  with_dict: "{{ lvm_partitions }}"
+
+- name: mount tmp lvm volumes
+  become: yes
+  command: mount /dev/system/{{ item.key }} /tmp/{{ item.key }}
+  when: "{{ item.key != 'root' }}"
+  with_dict: "{{ lvm_partitions }}"
+
+- name: copy over content from root partition to separate lvm volumes
+  become: yes
+  shell: "cp -aR /tmp/rootfs{{ item.value.mount }}/* /tmp/{{ item.key }}"
+  when: "{{ item.key != 'root' }}"
+  with_dict: "{{ lvm_partitions }}"
+
+- name: unmount separate lvm volumes from tmp
+  become: yes
+  command: umount /tmp/{{ item.key }}
+  when: "{{ item.key != 'root' }}"
+  with_dict: "{{ lvm_partitions }}"
+
+- name: re-mount lvm volumes to rootfs
+  become: yes
+  command: mount /dev/system/{{ item.key }} /tmp/rootfs{{ item.value.mount }}
+  when: "{{ item.key != 'root' }}"
+  with_dict: "{{ lvm_partitions }}"
