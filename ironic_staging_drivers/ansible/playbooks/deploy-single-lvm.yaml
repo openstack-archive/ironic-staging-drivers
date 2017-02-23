@@ -1,0 +1,24 @@
+---
+- include: add-ironic-nodes.yaml
+
+- hosts: ironic
+  gather_facts: no
+  roles:
+    - role: wait
+      tags: wait
+
+- hosts: ironic
+  roles:
+    - discover
+    - role: prepare
+      when: "{{ ironic.image.properties.lvm_partitions is undefined }}"
+    - role: prepare-single-lvm
+      when: "{{ ironic.image.properties.lvm_partitions is defined }}"
+    - role: deploy
+    - role: configure
+      when: "{{ ironic.image.properties.lvm_partitions is undefined }}"
+    - role: configure-single-lvm
+      when: "{{ ironic.image.properties.lvm_partitions is defined }}"
+  post_tasks:
+    - name: flush disk state
+      command: sync
