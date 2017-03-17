@@ -38,11 +38,11 @@ from ironic.common.i18n import _LW
 from ironic.common import images
 from ironic.common import states
 from ironic.common import utils
-from ironic.conductor import rpcapi
 from ironic.conductor import task_manager
 from ironic.conductor import utils as manager_utils
 from ironic.conf import CONF
 from ironic.drivers import base
+from ironic.drivers.modules import agent_base_vendor as agent_base
 from ironic.drivers.modules import deploy_utils
 
 
@@ -176,34 +176,6 @@ def _get_node_ip(task):
         node_address = urlparse.urlparse(callback_url).netloc.split(':')[0]
 
     return node_address
-
-
-# some good code from agent
-def _reboot_and_finish_deploy(task):
-    wait = CONF.ansible.post_deploy_get_power_state_retry_interval * 1000
-    attempts = CONF.ansible.post_deploy_get_power_state_retries + 1
-
-    @retrying.retry(
-        stop_max_attempt_number=attempts,
-        retry_on_result=lambda state: state != states.POWER_OFF,
-        wait_fixed=wait
-    )
-    def _wait_until_powered_off(task):
-        return task.driver.power.get_power_state(task)
-
-    try:
-        _wait_until_powered_off(task)
-    except Exception as e:
-        LOG.warning(_LW('Failed to soft power off node %(node_uuid)s '
-                    'in at least %(timeout)d seconds. Error: %(error)s'),
-                    {'node_uuid': task.node.uuid,
-                     'timeout': (wait * (attempts - 1)) / 1000,
-                     'error': e})
-        manager_utils.node_power_action(task, states.POWER_OFF)
-
-    task.driver.network.remove_provisioning_network(task)
-    task.driver.network.configure_tenant_networks(task)
-    manager_utils.node_power_action(task, states.POWER_ON)
 
 
 def _prepare_extra_vars(host_list, variables=None):
@@ -391,48 +363,13 @@ def _get_clean_steps(node, interface=None, override_priorities=None):
     return steps
 
 
-# taken from agent driver
-def _notify_conductor_resume_clean(task):
-    LOG.debug('Sending RPC to conductor to resume cleaning for node %s',
-              task.node.uuid)
-    uuid = task.node.uuid
-    rpc = rpcapi.ConductorAPI()
-    topic = rpc.get_topic_for(task.node)
-    # Need to release the lock to let the conductor take it
-    task.release_resources()
-    rpc.continue_node_clean(task.context, uuid, topic=topic)
-
-
-def _deploy(task, node_address):
-    """Internal function for deployment to a node."""
-    notags = ['wait'] if CONF.ansible.use_ramdisk_callback else []
-    node = task.node
-    LOG.debug('IP of node %(node)s is %(ip)s',
-              {'node': node.uuid, 'ip': node_address})
-    iwdi = node.driver_internal_info.get('is_whole_disk_image')
-    variables = _prepare_variables(task)
-    if iwdi:
-        notags.append('parted')
-    else:
-        variables.update(_parse_partitioning_info(task.node))
-    playbook, user, key = _parse_ansible_driver_info(task.node)
-    node_list = [(node.uuid, node_address, user, node.extra)]
-    extra_vars = _prepare_extra_vars(node_list, variables=variables)
-
-    LOG.debug('Starting deploy on node %s', node.uuid)
-    # any caller should manage exceptions raised from here
-    _run_playbook(playbook, extra_vars, key, notags=notags)
-    LOG.info(_LI('Ansible complete deploy on node %s'), node.uuid)
-
-    LOG.debug('Rebooting node %s to instance', node.uuid)
-    manager_utils.node_set_boot_device(task, 'disk', persistent=True)
-    _reboot_and_finish_deploy(task)
-
-    task.driver.boot.clean_up_ramdisk(task)
-
-
-class AnsibleDeploy(base.DeployInterface):
+class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
     """Interface for deploy-related actions."""
+
+    def __init__(self):
+        # NOTE(pas-ha) overriding agent creation as we won't be
+        # communicating with it, only processing heartbeats
+        self._client = None
 
     def get_properties(self):
         """Return the properties of the interface."""
@@ -457,16 +394,37 @@ class AnsibleDeploy(base.DeployInterface):
                       'parameters were missing') % node.uuid
         deploy_utils.check_for_missing_params(params, error_msg)
 
+    def _deploy(self, task, node_address):
+        """Internal function for deployment to a node."""
+        notags = ['wait'] if CONF.ansible.use_ramdisk_callback else []
+        node = task.node
+        LOG.debug('IP of node %(node)s is %(ip)s',
+                  {'node': node.uuid, 'ip': node_address})
+        variables = _prepare_variables(task)
+        iwdi = node.driver_internal_info.get('is_whole_disk_image')
+        if iwdi:
+            notags.append('parted')
+        else:
+            variables.update(_parse_partitioning_info(task.node))
+        playbook, user, key = _parse_ansible_driver_info(task.node)
+        node_list = [(node.uuid, node_address, user, node.extra)]
+        extra_vars = _prepare_extra_vars(node_list, variables=variables)
+
+        LOG.debug('Starting deploy on node %s', node.uuid)
+        # any caller should manage exceptions raised from here
+        _run_playbook(playbook, extra_vars, key, notags=notags)
+
     @task_manager.require_exclusive_lock
     def deploy(self, task):
         """Perform a deployment to a node."""
         manager_utils.node_power_action(task, states.REBOOT)
         if CONF.ansible.use_ramdisk_callback:
             return states.DEPLOYWAIT
+
         node = task.node
         ip_addr = _get_node_ip(task)
         try:
-            _deploy(task, ip_addr)
+            self._deploy(task, ip_addr)
         except Exception as e:
             error = _('Deploy failed for node %(node)s: '
                       'Error: %(exc)s') % {'node': node.uuid,
@@ -475,7 +433,7 @@ class AnsibleDeploy(base.DeployInterface):
             deploy_utils.set_failed_state(task, error, collect_logs=False)
 
         else:
-            LOG.info(_LI('Deployment to node %s done'), node.uuid)
+            self.reboot_to_instance(task)
             return states.DEPLOYDONE
 
     @task_manager.require_exclusive_lock
@@ -617,52 +575,63 @@ class AnsibleDeploy(base.DeployInterface):
         task.driver.boot.clean_up_ramdisk(task)
         task.driver.network.remove_cleaning_network(task)
 
-    def heartbeat(self, task, callback_url):
-        """Method for ansible ramdisk callback."""
+    def continue_deploy(self, task):
+        task.upgrade_lock(purpose='deploy')
+        task.process_event('resume')
+        node_address = _get_node_ip(task)
+        if not node_address:
+            raise exception.InstanceDeployFailure(
+                _("Failed to get node IP address of node %s") % task.node.uuid)
+        self._deploy(task, node_address)
+        self.reboot_to_instance(task)
+
+    def reboot_to_instance(self, task):
         node = task.node
-        address = urlparse.urlparse(callback_url).netloc.split(':')[0]
+        LOG.info(_LI('Ansible complete deploy on node %s'), node.uuid)
 
-        if node.maintenance:
-            # this shouldn't happen often, but skip the rest if it does.
-            LOG.debug('Heartbeat from node %(node)s in maintenance mode; '
-                      'not taking any action.', {'node': node.uuid})
-        elif node.provision_state == states.DEPLOYWAIT:
-            LOG.debug('Heartbeat from %(node)s.', {'node': node.uuid})
-            task.upgrade_lock(purpose='deploy')
-            node = task.node
-            task.process_event('resume')
+        LOG.debug('Rebooting node %s to instance', node.uuid)
+        manager_utils.node_set_boot_device(task, 'disk', persistent=True)
+        self.reboot_and_finish_deploy(task)
+
+        if task.driver.boot:
+            task.driver.boot.clean_up_ramdisk(task)
+
+    def reboot_and_finish_deploy(self, task):
+        wait = CONF.ansible.post_deploy_get_power_state_retry_interval * 1000
+        attempts = CONF.ansible.post_deploy_get_power_state_retries + 1
+
+        @retrying.retry(
+            stop_max_attempt_number=attempts,
+            retry_on_result=lambda state: state != states.POWER_OFF,
+            wait_fixed=wait
+        )
+        def _wait_until_powered_off(task):
+            return task.driver.power.get_power_state(task)
+
+        node = task.node
+        try:
             try:
-                _deploy(task, address)
+                _wait_until_powered_off(task)
             except Exception as e:
-                error = _('Deploy failed for node %(node)s: '
-                          'Error: %(exc)s') % {'node': node.uuid,
-                                               'exc': six.text_type(e)}
-                LOG.exception(error)
-                deploy_utils.set_failed_state(task, error, collect_logs=False)
+                LOG.warning(_LW('Failed to soft power off node %(node_uuid)s '
+                                'in at least %(timeout)d seconds. '
+                                'Error: %(error)s'),
+                            {'node_uuid': task.node.uuid,
+                             'timeout': (wait * (attempts - 1)) / 1000,
+                             'error': e})
 
-            else:
-                LOG.info(_LI('Deployment to node %s done'), node.uuid)
-                task.process_event('done')
+            # NOTE(pas-ha) flush is a part of deploy playbook
+            # so if it finished successfully we can safely
+            # power off the node out-of-band
+            manager_utils.node_power_action(task, states.POWER_OFF)
+            task.driver.network.remove_provisioning_network(task)
+            task.driver.network.configure_tenant_networks(task)
+            manager_utils.node_power_action(task, states.POWER_ON)
+        except Exception as e:
+            msg = (_('Error rebooting node %(node)s after deploy. '
+                     'Error: %(error)s') %
+                   {'node': node.uuid, 'error': e})
+            agent_base.log_and_raise_deployment_error(task, msg)
 
-        elif node.provision_state == states.CLEANWAIT:
-            LOG.debug('Node %s just booted to start cleaning.',
-                      node.uuid)
-            task.upgrade_lock(purpose='clean')
-            node = task.node
-            driver_internal_info = node.driver_internal_info
-            driver_internal_info['agent_url'] = callback_url
-            node.driver_internal_info = driver_internal_info
-            node.save()
-            try:
-                _notify_conductor_resume_clean(task)
-            except Exception as e:
-                error = _('cleaning failed for node %(node)s: '
-                          'Error: %(exc)s') % {'node': node.uuid,
-                                               'exc': six.text_type(e)}
-                LOG.exception(error)
-                manager_utils.cleaning_error_handler(task, error)
-
-        else:
-            LOG.warning(_LW('Call back from %(node)s in invalid provision '
-                            'state %(state)s'),
-                        {'node': node.uuid, 'state': node.provision_state})
+        task.process_event('done')
+        LOG.info(_LI('Deployment to node %s done'), task.node.uuid)
