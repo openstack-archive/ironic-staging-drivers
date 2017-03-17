@@ -155,18 +155,27 @@ def _get_configdrive_path(basename):
 
 
 def _get_node_ip(task):
-    api = dhcp_factory.DHCPFactory().provider
-    ip_addrs = api.get_ip_addresses(task)
-    if not ip_addrs:
-        raise exception.FailedToGetIPAddressOnPort(_(
-            "Failed to get IP address for any port on node %s.") %
-            task.node.uuid)
-    if len(ip_addrs) > 1:
-        error = _("Ansible driver does not support multiple IP addresses "
-                  "during deploy or cleaning")
-        raise exception.InstanceDeployFailure(reason=error)
+    node = task.node
+    if not CONF.ansible.use_ramdisk_callback:
+        node_address = node.driver_internal_info.get('ansible_cleaning_ip')
+        if not node_address:
+            api = dhcp_factory.DHCPFactory().provider
+            ip_addrs = api.get_ip_addresses(task)
+            if not ip_addrs:
+                raise exception.FailedToGetIPAddressOnPort(_(
+                    "Failed to get IP address for any port on node %s.") %
+                    node.uuid)
+            if len(ip_addrs) > 1:
+                error = _("Ansible driver does not support multiple IP "
+                          "addresses during deploy or cleaning")
+                raise exception.InstanceDeployFailure(reason=error)
 
-    return ip_addrs[0]
+            node_address = ip_addrs[0]
+    else:
+        callback_url = node.driver_internal_info.get('agent_url', '')
+        node_address = urlparse.urlparse(callback_url).netloc.split(':')[0]
+
+    return node_address
 
 
 # some good code from agent
@@ -340,10 +349,10 @@ def _validate_clean_steps(steps, node_uuid):
                                             reason=msg)
 
 
-def _get_clean_steps(task, interface=None, override_priorities=None):
+def _get_clean_steps(node, interface=None, override_priorities=None):
     """Get cleaning steps."""
-    clean_steps_file = task.node.driver_info.get('ansible_clean_steps_config',
-                                                 DEFAULT_CLEAN_STEPS)
+    clean_steps_file = node.driver_info.get('ansible_clean_steps_config',
+                                            DEFAULT_CLEAN_STEPS)
     path = os.path.join(CONF.ansible.playbooks_path, clean_steps_file)
     try:
         with open(path) as f:
@@ -351,14 +360,14 @@ def _get_clean_steps(task, interface=None, override_priorities=None):
     except Exception as e:
         msg = _('Failed to load clean steps from file '
                 '%(file)s: %(exc)s') % {'file': path, 'exc': e}
-        raise exception.NodeCleaningFailure(node=task.node.uuid, reason=msg)
+        raise exception.NodeCleaningFailure(node=node.uuid, reason=msg)
 
-    _validate_clean_steps(internal_steps, task.node.uuid)
+    _validate_clean_steps(internal_steps, node.uuid)
 
     steps = []
     override = override_priorities or {}
     for params in internal_steps:
-        name = params['name']
+        name = params.get('name', 'unnamed')
         clean_if = params['interface']
         if interface is not None and interface != clean_if:
             continue
@@ -515,7 +524,7 @@ class AnsibleDeploy(base.DeployInterface):
             'erase_devices_metadata':
                 CONF.deploy.erase_devices_metadata_priority
         }
-        return _get_clean_steps(task, interface='deploy',
+        return _get_clean_steps(task.node, interface='deploy',
                                 override_priorities=new_priorities)
 
     def execute_clean_step(self, task, step):
@@ -529,13 +538,13 @@ class AnsibleDeploy(base.DeployInterface):
         playbook, user, key = _parse_ansible_driver_info(
             task.node, action='clean')
         stepname = step['step']
-        try:
-            ip_addr = node.driver_internal_info['ansible_cleaning_ip']
-        except KeyError:
+
+        node_address = _get_node_ip(task)
+        if not node_address:
             raise exception.NodeCleaningFailure(node=node.uuid,
                                                 reason='undefined node IP '
                                                 'addresses')
-        node_list = [(node.uuid, ip_addr, user, node.extra)]
+        node_list = [(node.uuid, node_address, user, node.extra)]
         extra_vars = _prepare_extra_vars(node_list)
 
         LOG.debug('Starting cleaning step %(step)s on node %(node)s',
