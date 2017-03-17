@@ -14,17 +14,16 @@
 """
 Test class for AMT Common
 """
+import time
 
 from ironic.common import exception as ironic_exception
 from ironic.common import utils
 from ironic.tests import base
 from ironic.tests.unit.db import base as db_base
-
 from ironic.tests.unit.objects import utils as obj_utils
 import mock
 from oslo_concurrency import processutils
 from oslo_config import cfg
-import time
 
 from ironic_staging_drivers.amt import common as amt_common
 from ironic_staging_drivers.amt import resource_uris

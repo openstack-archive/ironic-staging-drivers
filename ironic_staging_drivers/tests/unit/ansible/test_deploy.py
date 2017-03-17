@@ -685,7 +685,7 @@ class TestAnsibleDeploy(db_base.DbTestCase):
                 ironic_nodes['ironic_nodes'])
             run_playbook_mock.assert_called_once_with(
                 'test_pl', ironic_nodes, 'test_k', tags=['wait'])
-            self.assertEqual(None, state)
+            self.assertIsNone(state)
 
     @mock.patch.object(utils, 'node_power_action', autospec=True)
     @mock.patch.object(pxe.PXEBoot, 'clean_up_ramdisk')
