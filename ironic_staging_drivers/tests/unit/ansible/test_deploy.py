@@ -28,6 +28,7 @@ from ironic.tests.unit.objects import utils as object_utils
 from ironic_lib import utils as irlib_utils
 import mock
 from oslo_config import cfg
+import six
 
 from ironic_staging_drivers.ansible import deploy as ansible_deploy
 
@@ -51,7 +52,7 @@ DRIVER_INFO = {
     'ansible_deploy_key_file': '/path/key',
 }
 DRIVER_INTERNAL_INFO = {
-    'ansible_cleaning_ip': 'http://127.0.0.1/',
+    'ansible_cleaning_ip': '127.0.0.1',
     'is_whole_disk_image': True,
     'clean_steps': []
 }
@@ -81,7 +82,12 @@ class TestAnsibleMethods(db_base.DbTestCase):
                           ansible_deploy._parse_ansible_driver_info,
                           self.node, 'test')
 
-    def test__get_node_ip(self):
+    def test__get_node_ip_no_callback(self):
+        self.config(group='ansible', use_ramdisk_callback=False)
+        di_info = self.node.driver_internal_info
+        di_info.pop('ansible_cleaning_ip')
+        self.node.driver_internal_info = di_info
+        self.node.save()
         dhcp_provider_mock = mock.Mock()
         dhcp_factory.DHCPFactory._dhcp_provider = dhcp_provider_mock
         dhcp_provider_mock.get_ip_addresses.return_value = ['ip']
@@ -90,7 +96,21 @@ class TestAnsibleMethods(db_base.DbTestCase):
             dhcp_provider_mock.get_ip_addresses.assert_called_once_with(
                 task)
 
-    def test__get_node_ip_no_ip(self):
+    def test__get_node_ip_no_callback_cleaning(self):
+        self.config(group='ansible', use_ramdisk_callback=False)
+        dhcp_provider_mock = mock.Mock()
+        dhcp_factory.DHCPFactory._dhcp_provider = dhcp_provider_mock
+        dhcp_provider_mock.get_ip_addresses.return_value = ['ip']
+        with task_manager.acquire(self.context, self.node.uuid) as task:
+            self.assertEqual('127.0.0.1', ansible_deploy._get_node_ip(task))
+            dhcp_provider_mock.get_ip_addresses.assert_not_called()
+
+    def test__get_node_ip_no_callback_no_ip(self):
+        self.config(group='ansible', use_ramdisk_callback=False)
+        di_info = self.node.driver_internal_info
+        di_info.pop('ansible_cleaning_ip')
+        self.node.driver_internal_info = di_info
+        self.node.save()
         dhcp_provider_mock = mock.Mock()
         dhcp_factory.DHCPFactory._dhcp_provider = dhcp_provider_mock
         dhcp_provider_mock.get_ip_addresses.return_value = []
@@ -98,13 +118,30 @@ class TestAnsibleMethods(db_base.DbTestCase):
             self.assertRaises(exception.FailedToGetIPAddressOnPort,
                               ansible_deploy._get_node_ip, task)
 
-    def test__get_node_ip_multiple_ip(self):
+    def test__get_node_ip_no_callback_multiple_ip(self):
+        self.config(group='ansible', use_ramdisk_callback=False)
+        di_info = self.node.driver_internal_info
+        di_info.pop('ansible_cleaning_ip')
+        self.node.driver_internal_info = di_info
+        self.node.save()
         dhcp_provider_mock = mock.Mock()
         dhcp_factory.DHCPFactory._dhcp_provider = dhcp_provider_mock
         dhcp_provider_mock.get_ip_addresses.return_value = ['ip1', 'ip2']
         with task_manager.acquire(self.context, self.node.uuid) as task:
             self.assertRaises(exception.InstanceDeployFailure,
                               ansible_deploy._get_node_ip, task)
+
+    def test__get_node_ip_with_callback(self):
+        di_info = self.node.driver_internal_info
+        di_info['agent_url'] = 'http://127.0.0.1:2345'
+        self.node.driver_internal_info = di_info
+        self.node.save()
+        with task_manager.acquire(self.context, self.node.uuid) as task:
+            self.assertEqual('127.0.0.1', ansible_deploy._get_node_ip(task))
+
+    def test__get_node_ip_with_callback_no_ip(self):
+        with task_manager.acquire(self.context, self.node.uuid) as task:
+            self.assertEqual('', ansible_deploy._get_node_ip(task))
 
     @mock.patch.object(utils, 'node_power_action', autospec=True)
     @mock.patch.object(fake.FakePower, 'get_power_state',
@@ -326,6 +363,62 @@ class TestAnsibleMethods(db_base.DbTestCase):
             finish_deploy_mock.assert_called_once_with(task)
             clean_ramdisk_mock.assert_called_once_with(task)
 
+    def test__validate_clean_steps(self):
+        steps = [{"interface": "deploy",
+                  "name": "foo",
+                  "args": {"spam": {"required": True, "value": "ham"}}},
+                 {"interface": "deploy"}]
+        self.assertIsNone(ansible_deploy._validate_clean_steps(
+            steps, self.node.uuid))
+
+    def test__validate_clean_steps_missing(self):
+        steps = [{"interface": "deploy",
+                  "args": {"spam": {"value": "ham"},
+                           "ham": {"required": True}}},
+                 {"name": "bar"}]
+        exc = self.assertRaises(exception.NodeCleaningFailure,
+                                ansible_deploy._validate_clean_steps,
+                                steps, self.node.uuid)
+        self.assertIn("name unnamed, field ham.value", six.text_type(exc))
+        self.assertIn("name bar, field interface", six.text_type(exc))
+
+    @mock.patch.object(ansible_deploy.yaml, 'safe_load', autospec=True)
+    def test__get_clean_steps(self, load_mock):
+        steps = [{"interface": "deploy",
+                  "name": "foo",
+                  "args": {"spam": {"required": True, "value": "ham"}}},
+                 {"interface": "deploy", "priority": 100}]
+        load_mock.return_value = steps
+        expected = [{"interface": "deploy",
+                     "step": "foo",
+                     "priority": 10,
+                     "abortable": False,
+                     "argsinfo": {"spam": {"required": True}},
+                     "args": {"spam": "ham"}},
+                    {"interface": "deploy",
+                     "step": "unnamed",
+                     "priority": 100,
+                     "abortable": False,
+                     "argsinfo": {},
+                     "args": {}}]
+        d_info = self.node.driver_info
+        d_info['ansible_clean_steps_config'] = 'custom_clean'
+        self.node.driver_info = d_info
+        self.node.save()
+        self.config(group='ansible', playbooks_path='/path/to/playbooks')
+
+        with mock.patch.object(ansible_deploy, 'open', mock.mock_open(),
+                               create=True) as open_mock:
+            self.assertEqual(
+                expected,
+                ansible_deploy._get_clean_steps(
+                    self.node, interface="deploy",
+                    override_priorities={"foo": 10}))
+            open_mock.assert_has_calls((
+                mock.call('/path/to/playbooks/custom_clean'),))
+            load_mock.assert_called_once_with(
+                open_mock().__enter__.return_value)
+
 
 class TestAnsibleDeploy(db_base.DbTestCase):
     def setUp(self):
@@ -451,7 +544,7 @@ class TestAnsibleDeploy(db_base.DbTestCase):
         with task_manager.acquire(self.context, self.node.uuid) as task:
             steps = self.driver.get_clean_steps(task)
             get_clean_steps_mock.assert_called_once_with(
-                task, interface='deploy',
+                task.node, interface='deploy',
                 override_priorities={
                     'erase_devices': None,
                     'erase_devices_metadata': None})
@@ -471,7 +564,7 @@ class TestAnsibleDeploy(db_base.DbTestCase):
         with task_manager.acquire(self.context, self.node.uuid) as task:
             steps = self.driver.get_clean_steps(task)
             mock_get_clean_steps.assert_called_once_with(
-                task, interface='deploy',
+                task.node, interface='deploy',
                 override_priorities={'erase_devices': 9,
                                      'erase_devices_metadata': 98})
         self.assertEqual(mock_steps, steps)
@@ -491,6 +584,10 @@ class TestAnsibleDeploy(db_base.DbTestCase):
                               DRIVER_INTERNAL_INFO['ansible_cleaning_ip'],
                               'test_u', {})]}
         prepare_extra_mock.return_value = ironic_nodes
+        di_info = self.node.driver_internal_info
+        di_info['agent_url'] = 'http://127.0.0.1'
+        self.node.driver_internal_info = di_info
+        self.node.save()
 
         with task_manager.acquire(self.context, self.node.uuid) as task:
             self.driver.execute_clean_step(task, step)
@@ -511,10 +608,6 @@ class TestAnsibleDeploy(db_base.DbTestCase):
 
         step = {'priority': 10, 'interface': 'deploy',
                 'step': 'erase_devices', 'tags': ['clean']}
-        driver_internal_info = dict(DRIVER_INTERNAL_INFO)
-        del driver_internal_info['ansible_cleaning_ip']
-        self.node.driver_internal_info = driver_internal_info
-        self.node.save()
 
         with task_manager.acquire(self.context, self.node.uuid) as task:
             self.assertRaises(exception.NodeCleaningFailure,
@@ -536,6 +629,10 @@ class TestAnsibleDeploy(db_base.DbTestCase):
         run_mock.side_effect = exception.InstanceDeployFailure('Boom')
         step = {'priority': 10, 'interface': 'deploy',
                 'step': 'erase_devices', 'args': {'tags': ['clean']}}
+        di_info = self.node.driver_internal_info
+        di_info['agent_url'] = 'http://127.0.0.1'
+        self.node.driver_internal_info = di_info
+        self.node.save()
         with task_manager.acquire(self.context, self.node.uuid) as task:
             self.driver.execute_clean_step(task, step)
             log_mock.error.assert_called_once_with(
