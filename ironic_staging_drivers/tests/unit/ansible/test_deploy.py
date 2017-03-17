@@ -425,7 +425,8 @@ class TestAnsibleDeploy(db_base.DbTestCase):
 
     def test_get_properties(self):
         self.assertEqual(
-            set(ansible_deploy.COMMON_PROPERTIES),
+            set(list(ansible_deploy.COMMON_PROPERTIES) +
+                ['deploy_forces_oob_reboot']),
             set(self.driver.get_properties()))
 
     @mock.patch.object(deploy_utils, 'check_for_missing_params',
@@ -789,7 +790,7 @@ class TestAnsibleDeploy(db_base.DbTestCase):
                     (self.node['uuid'],
                      DRIVER_INTERNAL_INFO['ansible_cleaning_ip'],
                      'test_u')]}, 'test_k',
-                notags=['wait'])
+                notags=['shutdown', 'wait'])
 
     @mock.patch.object(ansible_deploy, '_run_playbook', autospec=True)
     @mock.patch.object(ansible_deploy, '_prepare_extra_vars', autospec=True)
@@ -831,14 +832,43 @@ class TestAnsibleDeploy(db_base.DbTestCase):
                     (self.node['uuid'],
                      DRIVER_INTERNAL_INFO['ansible_cleaning_ip'],
                      'test_u')]}, 'test_k',
-                notags=['wait', 'parted'])
+                notags=['shutdown', 'wait', 'parted'])
 
+    @mock.patch.object(fake.FakePower, 'get_power_state',
+                       return_value=states.POWER_OFF)
+    @mock.patch.object(utils, 'node_power_action', autospec=True)
+    def test_reboot_and_finish_deploy_force_reboot(self, power_action_mock,
+                                                   get_pow_state_mock):
+        d_info = self.node.driver_info
+        d_info['deploy_forces_oob_reboot'] = True
+        self.node.driver_info = d_info
+        self.node.save()
+        self.config(group='ansible',
+                    post_deploy_get_power_state_retry_interval=0)
+        self.node.provision_state = states.DEPLOYING
+        self.node.save()
+
+        with task_manager.acquire(self.context, self.node.uuid) as task:
+            with mock.patch.object(task.driver, 'network') as net_mock:
+                self.driver.reboot_and_finish_deploy(task)
+                net_mock.remove_provisioning_network.assert_called_once_with(
+                    task)
+                net_mock.configure_tenant_networks.assert_called_once_with(
+                    task)
+            expected_power_calls = [((task, states.POWER_OFF),),
+                                    ((task, states.POWER_ON),)]
+            self.assertEqual(expected_power_calls,
+                             power_action_mock.call_args_list)
+        get_pow_state_mock.assert_not_called()
+
+    @mock.patch.object(ansible_deploy, '_run_playbook', autospec=True)
     @mock.patch.object(utils, 'node_power_action', autospec=True)
     @mock.patch.object(fake.FakePower, 'get_power_state',
                        return_value=states.POWER_ON)
     def test_reboot_and_finish_deploy_soft_poweroff_retry(self,
                                                           get_pow_state_mock,
-                                                          power_action_mock):
+                                                          power_action_mock,
+                                                          ansible_mock):
         self.config(group='ansible',
                     post_deploy_get_power_state_retry_interval=0)
         self.config(group='ansible',
@@ -865,6 +895,8 @@ class TestAnsibleDeploy(db_base.DbTestCase):
                                     ((task, states.POWER_ON),)]
             self.assertEqual(expected_power_calls,
                              power_action_mock.call_args_list)
+            ansible_mock.assert_called_once_with(mock.ANY, mock.ANY, mock.ANY,
+                                                 tags=['shutdown'])
 
     @mock.patch.object(ansible_deploy, '_get_node_ip', autospec=True,
                        return_value='1.2.3.4')
