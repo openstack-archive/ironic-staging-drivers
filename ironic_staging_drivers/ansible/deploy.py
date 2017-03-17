@@ -19,6 +19,7 @@ import json
 import os
 import shlex
 
+from ironic_lib import metrics_utils
 from ironic_lib import utils as irlib_utils
 from oslo_concurrency import processutils
 from oslo_config import cfg
@@ -103,6 +104,7 @@ CONF.register_opts(ansible_opts, group='ansible')
 
 LOG = log.getLogger(__name__)
 
+METRICS = metrics_utils.get_metrics_logger(__name__)
 
 DEFAULT_PLAYBOOKS = {
     'deploy': 'deploy.yaml',
@@ -379,6 +381,7 @@ class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
         props.update(agent_base.VENDOR_PROPERTIES)
         return props
 
+    @METRICS.timer('AnsibleDeploy.validate')
     def validate(self, task):
         """Validate the driver-specific Node deployment info."""
         task.driver.boot.validate(task)
@@ -420,6 +423,7 @@ class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
         # any caller should manage exceptions raised from here
         _run_playbook(playbook, extra_vars, key, notags=notags)
 
+    @METRICS.timer('AnsibleDeploy.deploy')
     @task_manager.require_exclusive_lock
     def deploy(self, task):
         """Perform a deployment to a node."""
@@ -442,6 +446,7 @@ class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
             self.reboot_to_instance(task)
             return states.DEPLOYDONE
 
+    @METRICS.timer('AnsibleDeploy.tear_down')
     @task_manager.require_exclusive_lock
     def tear_down(self, task):
         """Tear down a previous deployment on the task's node."""
@@ -449,6 +454,7 @@ class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
         task.driver.network.unconfigure_tenant_networks(task)
         return states.DELETED
 
+    @METRICS.timer('AnsibleDeploy.prepare')
     def prepare(self, task):
         """Prepare the deployment environment for this node."""
         node = task.node
@@ -464,6 +470,7 @@ class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
             boot_opt = deploy_utils.build_agent_options(node)
             task.driver.boot.prepare_ramdisk(task, boot_opt)
 
+    @METRICS.timer('AnsibleDeploy.clean_up')
     def clean_up(self, task):
         """Clean up the deployment environment for this node."""
         task.driver.boot.clean_up_ramdisk(task)
@@ -491,6 +498,7 @@ class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
         return _get_clean_steps(task.node, interface='deploy',
                                 override_priorities=new_priorities)
 
+    @METRICS.timer('AnsibleDeploy.execute_clean_step')
     def execute_clean_step(self, task, step):
         """Execute a clean step.
 
@@ -527,6 +535,7 @@ class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
                          'on node %(node)s.'),
                      {'node': node.uuid, 'step': stepname})
 
+    @METRICS.timer('AnsibleDeploy.prepare_cleaning')
     def prepare_cleaning(self, task):
         """Boot into the ramdisk to prepare for cleaning.
 
@@ -565,6 +574,7 @@ class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
         _run_playbook(playbook, extra_vars, key, tags=['wait'])
         LOG.info(_LI('Node %s is ready for cleaning'), node.uuid)
 
+    @METRICS.timer('AnsibleDeploy.tear_down_cleaning')
     def tear_down_cleaning(self, task):
         """Clean up the PXE and DHCP files after cleaning.
 
@@ -581,6 +591,7 @@ class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
         task.driver.boot.clean_up_ramdisk(task)
         task.driver.network.remove_cleaning_network(task)
 
+    @METRICS.timer('AnsibleDeploy.continue_deploy')
     def continue_deploy(self, task):
         task.upgrade_lock(purpose='deploy')
         task.process_event('resume')
@@ -591,6 +602,7 @@ class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
         self._deploy(task, node_address)
         self.reboot_to_instance(task)
 
+    @METRICS.timer('AnsibleDeploy.reboot_to_instance')
     def reboot_to_instance(self, task):
         node = task.node
         LOG.info(_LI('Ansible complete deploy on node %s'), node.uuid)
@@ -602,6 +614,7 @@ class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
         if task.driver.boot:
             task.driver.boot.clean_up_ramdisk(task)
 
+    @METRICS.timer('AnsibleDeploy.reboot_and_finish_deploy')
     def reboot_and_finish_deploy(self, task):
         wait = CONF.ansible.post_deploy_get_power_state_retry_interval * 1000
         attempts = CONF.ansible.post_deploy_get_power_state_retries + 1
