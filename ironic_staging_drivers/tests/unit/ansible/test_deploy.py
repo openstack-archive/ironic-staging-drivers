@@ -15,7 +15,6 @@ import os
 
 from ironic.common import dhcp_factory
 from ironic.common import exception
-from ironic.common import image_service
 from ironic.common import states
 from ironic.common import utils as com_utils
 from ironic.conductor import task_manager
@@ -40,7 +39,9 @@ INSTANCE_INFO = {
     'image_url': 'http://image',
     'image_checksum': 'checksum',
     'image_disk_format': 'qcow2',
-    'root_gb': 5,
+    'root_mb': 5120,
+    'swap_mb': 0,
+    'ephemeral_mb': 0
 }
 
 DRIVER_INFO = {
@@ -79,69 +80,6 @@ class TestAnsibleMethods(db_base.DbTestCase):
         self.assertRaises(exception.IronicException,
                           ansible_deploy._parse_ansible_driver_info,
                           self.node, 'test')
-
-    @mock.patch.object(image_service, 'GlanceImageService', autospec=True)
-    def test_build_instance_info_for_deploy_glance_image(self, glance_mock):
-        i_info = self.node.instance_info
-        i_info['image_source'] = '733d1c44-a2ea-414b-aca7-69decf20d810'
-        self.node.instance_info = i_info
-        self.node.save()
-
-        image_info = {'checksum': 'aa', 'disk_format': 'qcow2'}
-        glance_mock.return_value.show = mock.Mock(spec_set=[],
-                                                  return_value=image_info)
-
-        with task_manager.acquire(
-                self.context, self.node.uuid) as task:
-
-            ansible_deploy.build_instance_info_for_deploy(task)
-
-            glance_mock.assert_called_once_with(version=2,
-                                                context=task.context)
-            glance_mock.return_value.show.assert_called_once_with(
-                self.node.instance_info['image_source'])
-            glance_mock.return_value.swift_temp_url.assert_called_once_with(
-                image_info)
-
-    @mock.patch.object(image_service.HttpImageService, 'validate_href',
-                       autospec=True)
-    def test_build_instance_info_for_deploy_nonglance_image(
-            self, validate_href_mock):
-        i_info = self.node.instance_info
-        driver_internal_info = self.node.driver_internal_info
-        i_info['image_source'] = 'http://image-ref'
-        i_info['image_checksum'] = 'aa'
-        i_info['root_gb'] = 10
-        driver_internal_info['is_whole_disk_image'] = True
-        self.node.instance_info = i_info
-        self.node.driver_internal_info = driver_internal_info
-        self.node.save()
-
-        with task_manager.acquire(self.context, self.node.uuid) as task:
-            info = ansible_deploy.build_instance_info_for_deploy(task)
-
-            self.assertEqual(self.node.instance_info['image_source'],
-                             info['image_url'])
-            validate_href_mock.assert_called_once_with(
-                mock.ANY, 'http://image-ref')
-
-    @mock.patch.object(image_service.HttpImageService, 'validate_href',
-                       autospec=True)
-    def test_build_instance_info_for_deploy_nonsupported_image(
-            self, validate_href_mock):
-        validate_href_mock.side_effect = iter(
-            [exception.ImageRefValidationFailed(
-                image_href='file://img.qcow2', reason='fail')])
-        i_info = self.node.instance_info
-        i_info['image_source'] = 'file://img.qcow2'
-        i_info['image_checksum'] = 'aa'
-        self.node.instance_info = i_info
-        self.node.save()
-
-        with task_manager.acquire(self.context, self.node.uuid) as task:
-            self.assertRaises(
-                exception.ImageRefValidationFailed,
-                ansible_deploy.build_instance_info_for_deploy, task)
 
     def test__get_node_ip(self):
         dhcp_provider_mock = mock.Mock()
@@ -233,24 +171,18 @@ class TestAnsibleMethods(db_base.DbTestCase):
             ansible_deploy.INVENTORY_FILE, '-e', json.dumps(extra_vars),
             '--tags=wait', '--private-key=/path/to/key', '-vvvv')
 
-    @mock.patch.object(deploy_utils, 'check_for_missing_params',
-                       autospec=True)
-    def test__parse_partitioning_info(self, check_missing_param_mock):
+    def test__parse_partitioning_info(self):
         expected_info = {
             'ironic_partitions':
                 [{'boot': 'yes', 'swap': 'no',
-                  'size_mib': 1024 * INSTANCE_INFO['root_gb'],
+                  'size_mib': INSTANCE_INFO['root_mb'],
                   'name': 'root'}]}
 
         i_info = ansible_deploy._parse_partitioning_info(self.node)
 
-        check_missing_param_mock.assert_called_once_with(
-            expected_info, mock.ANY)
         self.assertEqual(expected_info, i_info)
 
-    @mock.patch.object(deploy_utils, 'check_for_missing_params',
-                       autospec=True)
-    def test__parse_partitioning_info_swap(self, check_missing_param_mock):
+    def test__parse_partitioning_info_swap(self):
         in_info = dict(INSTANCE_INFO)
         in_info['swap_mb'] = 128
         self.node.instance_info = in_info
@@ -259,29 +191,37 @@ class TestAnsibleMethods(db_base.DbTestCase):
         expected_info = {
             'ironic_partitions':
                 [{'boot': 'yes', 'swap': 'no',
-                  'size_mib': 1024 * INSTANCE_INFO['root_gb'],
+                  'size_mib': INSTANCE_INFO['root_mb'],
                   'name': 'root'},
                  {'boot': 'no', 'swap': 'yes',
                   'size_mib': 128, 'name': 'swap'}]}
 
         i_info = ansible_deploy._parse_partitioning_info(self.node)
 
-        check_missing_param_mock.assert_called_once_with(
-            expected_info, mock.ANY)
         self.assertEqual(expected_info, i_info)
 
-    @mock.patch.object(deploy_utils, 'check_for_missing_params',
-                       autospec=True)
-    def test__parse_partitioning_info_invalid_param(self,
-                                                    check_missing_param_mock):
+    def test__parse_partitioning_info_ephemeral(self):
         in_info = dict(INSTANCE_INFO)
-        in_info['root_gb'] = 'five'
+        in_info['ephemeral_mb'] = 128
+        in_info['ephemeral_format'] = 'ext4'
+        in_info['preserve_ephemeral'] = True
         self.node.instance_info = in_info
         self.node.save()
 
-        self.assertRaises(exception.InvalidParameterValue,
-                          ansible_deploy._parse_partitioning_info,
-                          self.node)
+        expected_info = {
+            'ironic_partitions':
+                [{'boot': 'yes', 'swap': 'no',
+                  'size_mib': INSTANCE_INFO['root_mb'],
+                  'name': 'root'},
+                 {'boot': 'no', 'swap': 'no',
+                  'size_mib': 128, 'name': 'ephemeral'}],
+            'ephemeral_format': 'ext4',
+            'preserve_ephemeral': 'yes'
+        }
+
+        i_info = ansible_deploy._parse_partitioning_info(self.node)
+
+        self.assertEqual(expected_info, i_info)
 
     @mock.patch.object(pxe.PXEBoot, 'clean_up_ramdisk')
     @mock.patch.object(ansible_deploy, '_reboot_and_finish_deploy',
@@ -467,8 +407,9 @@ class TestAnsibleDeploy(db_base.DbTestCase):
 
     @mock.patch('ironic.drivers.modules.deploy_utils.build_agent_options',
                 return_value={'op1': 'test1'}, autospec=True)
-    @mock.patch.object(ansible_deploy, 'build_instance_info_for_deploy',
-                       return_value={'test': 'test'}, autospec=True)
+    @mock.patch('ironic.drivers.modules.deploy_utils.'
+                'build_instance_info_for_deploy',
+                return_value={'test': 'test'}, autospec=True)
     @mock.patch.object(pxe.PXEBoot, 'prepare_ramdisk')
     def test_prepare(self, pxe_prepare_ramdisk_mock,
                      build_instance_info_mock, build_options_mock):
