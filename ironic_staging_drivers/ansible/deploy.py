@@ -23,8 +23,6 @@ from ironic_lib import utils as irlib_utils
 from oslo_concurrency import processutils
 from oslo_config import cfg
 from oslo_log import log
-from oslo_utils import excutils
-from oslo_utils import strutils
 from oslo_utils import units
 import retrying
 import six
@@ -33,12 +31,10 @@ import yaml
 
 from ironic.common import dhcp_factory
 from ironic.common import exception
-from ironic.common.glance_service import service_utils
 from ironic.common.i18n import _
 from ironic.common.i18n import _LE
 from ironic.common.i18n import _LI
 from ironic.common.i18n import _LW
-from ironic.common import image_service
 from ironic.common import images
 from ironic.common import states
 from ironic.common import utils
@@ -137,8 +133,6 @@ OPTIONAL_PROPERTIES = {
 }
 COMMON_PROPERTIES = OPTIONAL_PROPERTIES
 
-DISK_LAYOUT_PARAMS = ('root_gb', 'swap_mb', 'ephemeral_gb')
-
 INVENTORY_FILE = os.path.join(CONF.ansible.playbooks_path, 'inventory')
 
 
@@ -158,37 +152,6 @@ def _parse_ansible_driver_info(node, action='deploy'):
 
 def _get_configdrive_path(basename):
     return os.path.join(CONF.tempdir, basename + '.cndrive')
-
-
-# NOTE(yuriyz): this is a copy from agent driver
-def build_instance_info_for_deploy(task):
-    """Build instance_info necessary for deploying to a node."""
-    node = task.node
-    instance_info = node.instance_info
-
-    image_source = instance_info['image_source']
-    if service_utils.is_glance_image(image_source):
-        glance = image_service.GlanceImageService(version=2,
-                                                  context=task.context)
-        image_info = glance.show(image_source)
-        swift_temp_url = glance.swift_temp_url(image_info)
-        LOG.debug('Got image info: %(info)s for node %(node)s.',
-                  {'info': image_info, 'node': node.uuid})
-        instance_info['image_url'] = swift_temp_url
-        instance_info['image_checksum'] = image_info['checksum']
-        instance_info['image_disk_format'] = image_info['disk_format']
-    else:
-        try:
-            image_service.HttpImageService().validate_href(image_source)
-        except exception.ImageRefValidationFailed:
-            with excutils.save_and_reraise_exception():
-                LOG.error(_LE("Ansible deploy supports only HTTP(S) URLs as "
-                              "instance_info['image_source']. Either %s "
-                              "is not a valid HTTP(S) URL or "
-                              "is not reachable."), image_source)
-        instance_info['image_url'] = image_source
-
-    return instance_info
 
 
 def _get_node_ip(task):
@@ -292,60 +255,32 @@ def _parse_partitioning_info(node):
     info = node.instance_info
     i_info = {}
 
-    i_info['root_gb'] = info.get('root_gb')
-    error_msg = _("'root_gb' is missing in node's instance_info")
-    deploy_utils.check_for_missing_params(i_info, error_msg)
-
-    i_info['swap_mb'] = info.get('swap_mb', 0)
-    i_info['ephemeral_gb'] = info.get('ephemeral_gb', 0)
-    err_msg_invalid = _("Cannot validate parameter for deploy. Invalid "
-                        "parameter %(param)s. Reason: %(reason)s")
-
-    for param in DISK_LAYOUT_PARAMS:
-        try:
-            i_info[param] = int(i_info[param])
-        except ValueError:
-            reason = _("%s is not an integer value") % i_info[param]
-            raise exception.InvalidParameterValue(err_msg_invalid %
-                                                  {'param': param,
-                                                   'reason': reason})
-    # convert to sizes expected by 'parted' Ansible module
-    root_mib = 1024 * i_info.pop('root_gb')
-    swap_mib = i_info.pop('swap_mb')
-    ephemeral_mib = 1024 * i_info.pop('ephemeral_gb')
-
     partitions = []
     root_partition = {'name': 'root',
-                      'size_mib': root_mib,
+                      'size_mib': info['root_mb'],
                       'boot': 'yes',
                       'swap': 'no'}
     partitions.append(root_partition)
 
-    if swap_mib:
+    swap_mb = info['swap_mb']
+    if swap_mb:
         swap_partition = {'name': 'swap',
-                          'size_mib': swap_mib,
+                          'size_mib': swap_mb,
                           'boot': 'no',
                           'swap': 'yes'}
         partitions.append(swap_partition)
 
-    if ephemeral_mib:
+    ephemeral_mb = info['ephemeral_mb']
+    if ephemeral_mb:
         ephemeral_partition = {'name': 'ephemeral',
-                               'size_mib': ephemeral_mib,
+                               'size_mib': ephemeral_mb,
                                'boot': 'no',
                                'swap': 'no'}
         partitions.append(ephemeral_partition)
-        i_info['ephemeral_format'] = info.get('ephemeral_format')
-        if not i_info['ephemeral_format']:
-            i_info['ephemeral_format'] = CONF.pxe.default_ephemeral_format
-        preserve_ephemeral = info.get('preserve_ephemeral', False)
-        try:
-            i_info['preserve_ephemeral'] = (
-                strutils.bool_from_string(preserve_ephemeral, strict=True))
-        except ValueError as e:
-            raise exception.InvalidParameterValue(
-                err_msg_invalid % {'param': 'preserve_ephemeral', 'reason': e})
+
+        i_info['ephemeral_format'] = info['ephemeral_format']
         i_info['preserve_ephemeral'] = (
-            'yes' if i_info['preserve_ephemeral'] else 'no')
+            'yes' if info['preserve_ephemeral'] else 'no')
 
     i_info['ironic_partitions'] = partitions
     return i_info
@@ -550,7 +485,8 @@ class AnsibleDeploy(base.DeployInterface):
             manager_utils.node_power_action(task, states.POWER_OFF)
             task.driver.network.add_provisioning_network(task)
         if node.provision_state not in [states.ACTIVE, states.ADOPTING]:
-            node.instance_info = build_instance_info_for_deploy(task)
+            node.instance_info = deploy_utils.build_instance_info_for_deploy(
+                task)
             node.save()
             boot_opt = deploy_utils.build_agent_options(node)
             task.driver.boot.prepare_ramdisk(task, boot_opt)
