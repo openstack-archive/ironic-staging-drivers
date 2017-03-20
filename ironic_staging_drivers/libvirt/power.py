@@ -41,10 +41,6 @@ Currently supported transports are:
 import os
 import xml.etree.ElementTree as ET
 
-from oslo_config import cfg
-from oslo_log import log as logging
-from oslo_utils import importutils
-
 from ironic.common import boot_devices
 from ironic.common import exception as ir_exc
 from ironic.common.i18n import _
@@ -52,6 +48,10 @@ from ironic.common import states
 from ironic.conductor import task_manager
 from ironic.drivers import base
 from ironic.drivers import utils as driver_utils
+from oslo_config import cfg
+from oslo_log import log as logging
+from oslo_utils import importutils
+
 from ironic_staging_drivers.common import exception as isd_exc
 
 libvirt = importutils.try_import('libvirt')
