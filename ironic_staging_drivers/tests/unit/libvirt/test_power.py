@@ -26,12 +26,12 @@ from ironic.common import exception
 from ironic.common import states
 from ironic.conductor import task_manager
 from ironic.drivers import utils as driver_utils
-from ironic_staging_drivers.common import exception as isd_exc
-from ironic_staging_drivers.libvirt import power
-
 from ironic.tests.unit.conductor import mgr_utils
 from ironic.tests.unit.db import base as db_base
 from ironic.tests.unit.objects import utils as obj_utils
+
+from ironic_staging_drivers.common import exception as isd_exc
+from ironic_staging_drivers.libvirt import power
 
 
 def _get_test_libvirt_driver_info(auth_type='ssh_key'):
