@@ -528,7 +528,7 @@ class AnsibleDeploy(base.DeployInterface):
                       'Error: %(exc)s') % {'node': node.uuid,
                                            'exc': six.text_type(e)}
             LOG.exception(error)
-            self._set_failed_state(task, error)
+            deploy_utils.set_failed_state(task, error, collect_logs=False)
 
         else:
             LOG.info(_LI('Deployment to node %s done'), node.uuid)
@@ -672,30 +672,6 @@ class AnsibleDeploy(base.DeployInterface):
         task.driver.boot.clean_up_ramdisk(task)
         task.driver.network.remove_cleaning_network(task)
 
-    # FIXME(pas-ha): remove this workaround after nearest Ironic release
-    # that contains the specified commit (next after 6.1.0)
-    # and require this Ironic release
-    def _upgrade_lock(self, task, purpose=None):
-        try:
-            task.upgrade_lock(purpose=purpose)
-        except TypeError:
-            LOG.warning(_LW("To have better logging please update your "
-                            "Ironic installation to contain commit "
-                            "2a73b50a7fb29c4e73511d2294aa19c37d96c969."))
-            task.upgrade_lock()
-
-    # FIXME(pas-ha): remove this workaround after nearest Ironic release
-    # that contains the specified commit (next after 6.1.0)
-    # and require this Ironic release
-    def _set_failed_state(self, task, error):
-        try:
-            deploy_utils.set_failed_state(task, error, collect_logs=False)
-        except TypeError:
-            LOG.warning(_LW("To have proper error handling please update "
-                            "your Ironic installation to contain commit "
-                            "bb62f256f7aa55c292ebeae73ca25a4a9f0ec8c0."))
-            deploy_utils.set_failed_state(task, error)
-
     def heartbeat(self, task, callback_url):
         """Method for ansible ramdisk callback."""
         node = task.node
@@ -707,7 +683,7 @@ class AnsibleDeploy(base.DeployInterface):
                       'not taking any action.', {'node': node.uuid})
         elif node.provision_state == states.DEPLOYWAIT:
             LOG.debug('Heartbeat from %(node)s.', {'node': node.uuid})
-            self._upgrade_lock(task, purpose='deploy')
+            task.upgrade_lock(purpose='deploy')
             node = task.node
             task.process_event('resume')
             try:
@@ -717,7 +693,7 @@ class AnsibleDeploy(base.DeployInterface):
                           'Error: %(exc)s') % {'node': node.uuid,
                                                'exc': six.text_type(e)}
                 LOG.exception(error)
-                self._set_failed_state(task, error)
+                deploy_utils.set_failed_state(task, error, collect_logs=False)
 
             else:
                 LOG.info(_LI('Deployment to node %s done'), node.uuid)
@@ -726,7 +702,7 @@ class AnsibleDeploy(base.DeployInterface):
         elif node.provision_state == states.CLEANWAIT:
             LOG.debug('Node %s just booted to start cleaning.',
                       node.uuid)
-            self._upgrade_lock(task, purpose='clean')
+            task.upgrade_lock(purpose='clean')
             node = task.node
             driver_internal_info = node.driver_internal_info
             driver_internal_info['ansible_cleaning_ip'] = address
