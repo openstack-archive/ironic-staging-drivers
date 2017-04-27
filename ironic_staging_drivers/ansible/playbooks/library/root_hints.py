@@ -16,7 +16,7 @@
 GIB = 1 << 30
 
 EXTRA_PARAMS = set(['wwn', 'serial', 'wwn_with_extension',
-                    'wwn_vendor_extension'])
+                    'wwn_vendor_extension', 'hctl'])
 
 
 # NOTE: ansible calculates device size as float with 2-digits precision,
@@ -74,14 +74,21 @@ def main():
     devices = module.params['ansible_devices']
     devices_wwn = module.params['ansible_devices_wwn']
 
-    if devices_wwn is None:
-        extra = set(hints) & EXTRA_PARAMS
-        if extra:
-            module.fail_json(msg='Extra hints (supported by additional ansible'
-                             ' module) are set but this information can not be'
-                             ' collected. Extra hints: %s' % ', '.join(extra))
+    devices_wwn = devices_wwn or {}
+    extra = set(hints) & EXTRA_PARAMS
 
-    devices_info = merge_devices_info(devices, devices_wwn or {})
+    def _extra_from_module(devices_wwn):
+        params = set()
+        for dev in devices_wwn:
+            params |= set(devices_wwn[dev])
+        return params
+
+    if not devices_wwn or not extra <= _extra_from_module(devices_wwn):
+        module.fail_json(msg='Extra hints (supported by additional ansible'
+                         ' module) are set but this information can not be'
+                         ' collected. Extra hints: %s' % ', '.join(extra))
+
+    devices_info = merge_devices_info(devices, devices_wwn)
     hint = root_hint(hints, devices_info)
 
     if hint is None:
