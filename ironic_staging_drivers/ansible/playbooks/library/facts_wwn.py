@@ -13,9 +13,13 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+import collections
+import os
+
 try:
     import pyudev
     HAS_PYUDEV = True
+    CONTEXT = pyudev.Context()
 except ImportError:
     HAS_PYUDEV = False
 
@@ -25,29 +29,27 @@ COLLECT_INFO = (('wwn', 'WWN'), ('serial', 'SERIAL_SHORT'),
                 ('wwn_vendor_extension', 'WWN_VENDOR_EXTENSION'))
 
 
-def get_devices_wwn(devices):
+def get_devices_params(devices):
 
-    if not HAS_PYUDEV:
-        LOG.warning('Can not collect "wwn", "wwn_with_extension", '
-                    '"wwn_vendor_extension" and "serial" when using '
-                    'root device hints because there\'s no UDEV python '
-                    'binds installed')
-        return
+    dev_dict = collections.defaultdict(dict)
 
-    dev_dict = {}
-    context = pyudev.Context()
     for device in devices:
-        name = '/dev/' + device
         try:
-            udev = pyudev.Device.from_device_file(context, name)
-        except (ValueError, EnvironmentError, pyudev.DeviceNotFoundError) as e:
-            LOG.warning('Device %(dev)s is inaccessible, skipping... '
-                        'Error: %(error)s', {'dev': name, 'error': e})
-            continue
+            # We need one extra parameter for hints that ironic supports
+            dev_dict[device]['hctl'] = os.listdir(
+                '/sys/block/%s/device/scsi_device' % device)[0]
+        except (OSError, IndexError):
+            pass
 
-        dev_dict[device] = {}
-        for key, udev_key in COLLECT_INFO:
-            dev_dict[device][key] = udev.get('ID_%s' % udev_key)
+        if HAS_PYUDEV:
+            name = '/dev/' + device
+            try:
+                udev = pyudev.Device.from_device_file(CONTEXT, name)
+            except (ValueError, EnvironmentError, pyudev.DeviceNotFoundError):
+                pass
+            else:
+                for key, udev_key in COLLECT_INFO:
+                    dev_dict[device][key] = udev.get('ID_%s' % udev_key)
 
     return {"ansible_facts": {"devices_wwn": dev_dict}}
 
@@ -61,7 +63,7 @@ def main():
     )
 
     devices = module.params['devices']
-    data = get_devices_wwn(devices)
+    data = get_devices_params(devices)
     module.exit_json(**data)
 
 
