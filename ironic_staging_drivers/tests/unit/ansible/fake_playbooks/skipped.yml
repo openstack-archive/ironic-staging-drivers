@@ -1,0 +1,5 @@
+- hosts: spam
+
+- hosts: ham
+
+- hosts: conductor

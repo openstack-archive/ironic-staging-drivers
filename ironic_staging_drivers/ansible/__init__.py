@@ -17,6 +17,7 @@ from ironic.drivers.modules import ipmitool
 from ironic.drivers.modules import pxe
 
 from ironic_staging_drivers.ansible import deploy as ansible_deploy
+from ironic_staging_drivers.ansible import vendor as ansible_vendor
 from ironic_staging_drivers.libvirt import power as libvirt_power
 
 
@@ -39,6 +40,7 @@ class FakeAnsibleDriver(base.BaseDriver):
         self.boot = pxe.PXEBoot()
         self.deploy = ansible_deploy.AnsibleDeploy()
         self.management = fake.FakeManagement()
+        self.vendor = ansible_vendor.AnsibleDeployPassthru()
 
 
 class AnsibleAndLibvirtDriver(base.BaseDriver):
@@ -63,3 +65,9 @@ class AnsibleDeployIPMI(ipmi.IPMIHardware):
         """List of supported deploy interfaces."""
         return (super(AnsibleDeployIPMI, self).supported_deploy_interfaces +
                 [ansible_deploy.AnsibleDeploy])
+
+    @property
+    def supported_vendor_interfaces(self):
+        """List of supported vendor interfaces."""
+        return (super(AnsibleDeployIPMI, self).supported_vendor_interfaces +
+                [ansible_vendor.AnsibleDeployPassthru])

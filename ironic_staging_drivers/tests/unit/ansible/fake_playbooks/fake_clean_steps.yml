@@ -1,0 +1,5 @@
+- interface: spam
+  ham: eggs
+
+- interface: foo
+  bar: baz

@@ -15,9 +15,11 @@ from ironic.drivers import generic
 from ironic.drivers.modules import agent
 from ironic.drivers.modules import fake
 from ironic.drivers.modules import iscsi_deploy
+from ironic.drivers.modules import noop
 from ironic.drivers.modules import pxe
 
 from ironic_staging_drivers.ansible import deploy as ansible_deploy
+from ironic_staging_drivers.ansible import vendor as ansible_vendor
 from ironic_staging_drivers.libvirt import power
 
 
@@ -91,3 +93,8 @@ class LibvirtHardware(generic.GenericHardware):
     def supported_power_interfaces(self):
         """List of supported power interfaces."""
         return [power.LibvirtPower]
+
+    @property
+    def supported_vendor_interfaces(self):
+        """List of supported vendor interfaces."""
+        return [noop.NoVendor, ansible_vendor.AnsibleDeployPassthru]
