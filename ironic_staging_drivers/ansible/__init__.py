@@ -15,8 +15,10 @@ from ironic.drivers.modules import fake
 from ironic.drivers.modules import ipmitool
 from ironic.drivers.modules import pxe
 from ironic.drivers.modules import ssh
+from ironic.drivers import utils
 
 from ironic_staging_drivers.ansible import deploy as ansible_deploy
+from ironic_staging_drivers.ansible import vendor as ansible_vendor
 from ironic_staging_drivers.libvirt import power as libvirt_power
 
 
@@ -41,7 +43,12 @@ class AnsibleAndIPMIToolDriver(base.BaseDriver):
         self.boot = pxe.PXEBoot()
         self.deploy = ansible_deploy.AnsibleDeploy()
         self.management = ipmitool.IPMIManagement()
-        self.vendor = ipmitool.VendorPassthru()
+        self.ipmi_vendor = ipmitool.VendorPassthru()
+        self.ansible_vendor = ansible_vendor.AnsibleDeployPassthru()
+        self.mapping = {'send_raw': self.ipmi_vendor,
+                        'bmc_reset': self.ipmi_vendor,
+                        'list_ansible_files': self.ansible_vendor}
+        self.vendor = utils.MixinVendorInterface(self.mapping)
 
 
 class FakeAnsibleDriver(base.BaseDriver):
@@ -52,6 +59,7 @@ class FakeAnsibleDriver(base.BaseDriver):
         self.boot = pxe.PXEBoot()
         self.deploy = ansible_deploy.AnsibleDeploy()
         self.management = fake.FakeManagement()
+        self.vendor = ansible_vendor.AnsibleDeployPassthru()
 
 
 class AnsibleAndLibvirtDriver(base.BaseDriver):
