@@ -3,6 +3,8 @@
     devices: "{{ ansible_devices.keys() }}"
 
 - name: calculate root hint
+  become: false
+  delegate_to: conductor
   root_hints:
     root_device_hints: "{{ ironic.root_device_hints }}"
     ansible_devices: "{{ ansible_devices }}"

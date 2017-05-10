@@ -12,6 +12,10 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+from ironic_lib import utils as il_utils
+from oslo_utils import strutils
+
+
 GIB = 1 << 30
 
 EXTRA_PARAMS = set(['wwn', 'serial', 'wwn_with_extension',
@@ -25,39 +29,28 @@ def size_gib(device_info):
     sectors = device_info.get('sectors')
     sectorsize = device_info.get('sectorsize')
     if sectors is None or sectorsize is None:
-        return '0'
+        return
 
-    return str((int(sectors) * int(sectorsize)) // GIB)
-
-
-def merge_devices_info(devices, devices_wwn):
-    merged_info = devices.copy()
-    for device in merged_info:
-        if device in devices_wwn:
-            merged_info[device].update(devices_wwn[device])
-
-        # replace size
-        merged_info[device]['size'] = size_gib(merged_info[device])
-
-    return merged_info
+    return (int(sectors) * int(sectorsize)) // GIB
 
 
-def root_hint(hints, devices):
-    hint = None
-    name = hints.pop('name', None)
-    for device in devices:
-        for key in hints:
-            if hints[key] != devices[device].get(key):
-                break
-        else:
-            # If multiple hints are specified, a device must satisfy all
-            # the hints
-            dev_name = '/dev/' + device
-            if name is None or name == dev_name:
-                hint = dev_name
-                break
+def create_devices_list(devices, devices_wwn):
+    dev_list = []
+    for name, info in devices.items():
+        merged_info = {'name': '/dev/' + name}
+        merged_info['model'] = info.get('model')
+        merged_info['vendor'] = info.get('vendor')
+        rotational = info.get('rotational')
+        if rotational is not None:
+            rotational = strutils.bool_from_string(rotational, strict=True)
+        merged_info['rotational'] = rotational
+        if name in devices_wwn:
+            merged_info.update(devices_wwn[name])
 
-    return hint
+        merged_info['size'] = size_gib(info)
+        dev_list.append(merged_info)
+
+    return dev_list
 
 
 def main():
@@ -87,15 +80,20 @@ def main():
                          ' module) are set but this information can not be'
                          ' collected. Extra hints: %s' % ', '.join(extra))
 
-    devices_info = merge_devices_info(devices, devices_wwn)
-    hint = root_hint(hints, devices_info)
+    devices_list = create_devices_list(devices, devices_wwn)
 
-    if hint is None:
+    try:
+        # device is None if not match
+        device = il_utils.match_root_device_hints(devices_list, hints)
+    except ValueError:
+        device = None
+
+    if device is None:
         module.fail_json(msg='Root device hints are set, but none of the '
                          'devices satisfy them. Collected devices info: %s'
-                         % devices_info)
+                         % devices_list)
 
-    ret_data = {'ansible_facts': {'ironic_root_device': hint}}
+    ret_data = {'ansible_facts': {'ironic_root_device': device['name']}}
     module.exit_json(**ret_data)
 
 
