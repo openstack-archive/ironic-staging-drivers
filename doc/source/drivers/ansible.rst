@@ -79,11 +79,9 @@ Configdrive partition
 Creating a configdrive partition is supported for both whole disk
 and partition images, on both ``msdos`` and ``GPT`` labeled disks.
 
-Root device hints
-~~~~~~~~~~~~~~~~~
+Root device
+~~~~~~~~~~~
 
-Root device hints are currently supported in their basic form only
-(with exact matches, without oslo.utils operators).
 If no root device hint is provided for the node, first device returned as
 part of ``ansible_devices`` fact is used as root device to create partitions
 on or write the whole disk image to.
