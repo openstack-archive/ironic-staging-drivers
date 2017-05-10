@@ -1,0 +1,5 @@
+- hosts: all
+  name: should not be returned
+
+- hosts: ironic
+  name: fake shutdown playbook
