@@ -8,6 +8,7 @@
       tags: wait
 
 - hosts: ironic
+  name: Default deploy playbook, very close to agent drivers beavior
   roles:
     - discover
     - prepare

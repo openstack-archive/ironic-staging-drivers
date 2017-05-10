@@ -2,5 +2,6 @@
 - include: add-ironic-nodes.yaml
 
 - hosts: ironic
+  name: Default shutdown playbook, only powers the node off in-band
   roles:
     - shutdown
