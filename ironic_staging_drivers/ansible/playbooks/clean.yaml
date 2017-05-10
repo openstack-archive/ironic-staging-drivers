@@ -8,5 +8,6 @@
       tags: wait
 
 - hosts: ironic
+  name: Default cleaning playbook, wipes disk metadata and/or sherds disks
   roles:
     - clean
