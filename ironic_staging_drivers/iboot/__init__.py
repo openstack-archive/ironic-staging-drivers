@@ -17,6 +17,7 @@
 from ironic.common import exception as ironic_exception
 from ironic.common.i18n import _
 from ironic.drivers import base
+from ironic.drivers import generic
 from ironic.drivers.modules import agent
 from ironic.drivers.modules import fake
 from ironic.drivers.modules import iscsi_deploy
@@ -77,3 +78,20 @@ class PXEIBootAgentDriver(base.BaseDriver):
         self.power = iboot_power.IBootPower()
         self.boot = pxe.PXEBoot()
         self.deploy = agent.AgentDeploy()
+
+
+class IBootHardware(generic.GenericHardware):
+    """IBoot hardware type.
+
+    Uses IBoot for power management.
+    """
+
+    @property
+    def supported_management_interfaces(self):
+        """List of supported management interfaces."""
+        return [fake.FakeManagement]
+
+    @property
+    def supported_power_interfaces(self):
+        """List of supported power interfaces."""
+        return [iboot_power.IBootPower]
