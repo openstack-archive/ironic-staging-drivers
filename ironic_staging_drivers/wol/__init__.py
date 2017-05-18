@@ -14,6 +14,7 @@
 #    under the License.
 
 from ironic.drivers import base
+from ironic.drivers import generic
 from ironic.drivers.modules import agent
 from ironic.drivers.modules import fake
 from ironic.drivers.modules import iscsi_deploy
@@ -63,3 +64,20 @@ class PXEWakeOnLanAgentDriver(base.BaseDriver):
         self.boot = pxe.PXEBoot()
         self.power = wol_power.WakeOnLanPower()
         self.deploy = agent.AgentDeploy()
+
+
+class WOLHardware(generic.GenericHardware):
+    """WOL hardware type.
+
+    Uses wake on lan for power on.
+    """
+
+    @property
+    def supported_management_interfaces(self):
+        """List of supported management interfaces."""
+        return [fake.FakeManagement]
+
+    @property
+    def supported_power_interfaces(self):
+        """List of supported power interfaces."""
+        return [wol_power.WakeOnLanPower]

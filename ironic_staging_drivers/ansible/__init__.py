@@ -11,12 +11,14 @@
 # limitations under the License.
 
 from ironic.drivers import base
+from ironic.drivers import ipmi
 from ironic.drivers.modules import fake
 from ironic.drivers.modules import ipmitool
 from ironic.drivers.modules import pxe
 from ironic.drivers.modules import ssh
 
 from ironic_staging_drivers.ansible import deploy as ansible_deploy
+from ironic_staging_drivers import libvirt
 from ironic_staging_drivers.libvirt import power as libvirt_power
 
 
@@ -65,3 +67,23 @@ class AnsibleAndLibvirtDriver(base.BaseDriver):
         self.boot = pxe.PXEBoot()
         self.deploy = ansible_deploy.AnsibleDeploy()
         self.management = libvirt_power.LibvirtManagement()
+
+
+# NOTE(yuriyz): These classes are not types of "real" hardware. Added for
+# support of ansible deploy interface.
+class AnsibleDeployIPMI(ipmi.IPMIHardware):
+
+    @property
+    def supported_deploy_interfaces(self):
+        """List of supported deploy interfaces."""
+        return (super(AnsibleDeployIPMI, self).supported_deploy_interfaces +
+                [ansible_deploy.AnsibleDeploy])
+
+
+class AnsibleDeployLibvirt(libvirt.LibvirtHardware):
+
+    @property
+    def supported_deploy_interfaces(self):
+        """List of supported deploy interfaces."""
+        return (super(AnsibleDeployLibvirt, self).supported_deploy_interfaces +
+                [ansible_deploy.AnsibleDeploy])

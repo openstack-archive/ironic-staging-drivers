@@ -11,6 +11,7 @@
 # under the License.
 
 from ironic.drivers import base
+from ironic.drivers import generic
 from ironic.drivers.modules import agent
 from ironic.drivers.modules import fake
 from ironic.drivers.modules import iscsi_deploy
@@ -65,3 +66,20 @@ class PXELibvirtISCSIDriver(base.BaseDriver):
         self.boot = pxe.PXEBoot()
         self.deploy = iscsi_deploy.ISCSIDeploy()
         self.management = power.LibvirtManagement()
+
+
+class LibvirtHardware(generic.GenericHardware):
+    """Libvirt hardware type.
+
+    Uses Libvirt for power and management.
+    """
+
+    @property
+    def supported_management_interfaces(self):
+        """List of supported management interfaces."""
+        return [power.LibvirtManagement]
+
+    @property
+    def supported_power_interfaces(self):
+        """List of supported power interfaces."""
+        return [power.LibvirtPower]
