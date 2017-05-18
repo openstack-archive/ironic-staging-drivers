@@ -1,0 +1,45 @@
+---
+features:
+  - |
+    Adds 'staging-amt' hardware type for AMT hardware.
+    Supported driver interfaces different from Generic Hardware are:
+
+    - power: staging-amt
+    - management: staging-amt
+    - deploy: direct, staging-amt
+
+  - |
+    Adds 'staging-wol' hardware type for Wake-on-Lan hardware.
+    Supported driver interfaces different from Generic Hardware are:
+
+    - power: staging-wol
+    - management: fake
+
+  - |
+    Adds 'staging-iboot' hardware type for iBoot hardware.
+    Supported driver interfaces different from Generic Hardware are:
+
+    - power: staging-iboot
+    - management: fake
+
+  - |
+    Adds 'staging-libvirt' hardware type for libvirt-managed virtual hardware.
+    Supported driver interfaces different from Generic Hardware are:
+
+    - power: staging-libvirt
+    - management: staging-libvirt
+    - deploy: direct, iscsi, staging-ansible
+
+  - |
+    Adds 'staging-nm' hardware type for Intel NodeManager hardware.
+    Supported driver interfaces different from ``ipmi`` hardware type are:
+
+    - vendor: ipmitool, no-vendor, staging-nm
+
+  - |
+    Adds 'staging-ansible-ipmi' hardware type for IPMI hardware.
+    This is not a real hardware type, but it is needed to enable
+    ansible-deploy interface for standard ``ipmi`` hardware type.
+    Supported driver interfaces different from ``ipmi`` hardware are:
+
+    - deploy: direct, iscsi, staging-ansible
