@@ -15,6 +15,7 @@
 
 from ironic.common import exception as ironic_exception
 from ironic.drivers import base
+from ironic.drivers import generic
 from ironic.drivers.modules import agent
 from ironic.drivers.modules import fake
 from ironic.drivers.modules import pxe
@@ -79,3 +80,25 @@ class PXEAndAMTAgentDriver(base.BaseDriver):
         self.boot = pxe.PXEBoot()
         self.deploy = agent.AgentDeploy()
         self.management = amt_management.AMTManagement()
+
+
+class AMTHardware(generic.GenericHardware):
+    """AMT hardware type.
+
+    Hardware type for Intel AMT.
+    """
+
+    @property
+    def supported_deploy_interfaces(self):
+        """List of supported deploy interfaces."""
+        return [amt_deploy.AMTISCSIDeploy, agent.AgentDeploy]
+
+    @property
+    def supported_management_interfaces(self):
+        """List of supported management interfaces."""
+        return [amt_management.AMTManagement]
+
+    @property
+    def supported_power_interfaces(self):
+        """List of supported power interfaces."""
+        return [amt_power.AMTPower]

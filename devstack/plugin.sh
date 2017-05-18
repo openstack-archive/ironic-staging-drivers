@@ -4,34 +4,95 @@
 IRONIC_STAGING_DRIVERS_DIR=$DEST/ironic-staging-drivers
 IRONIC_DRIVERS_EXCLUDED_DIRS='tests common'
 IRONIC_STAGING_DRIVER=${IRONIC_STAGING_DRIVER:-}
+# NOTE(pas-ha) skip iboot drivers by default as they require package not available on PyPI
+IRONIC_STAGING_DRIVERS_SKIPS=${IRONIC_STAGING_DRIVERS_SKIPS:-"iboot"}
+IRONIC_STAGING_DRIVERS_FILTERS=${IRONIC_STAGING_DRIVERS_FILTERS:-}
+IRONIC_STAGING_LIST_EP_CMD="$PYTHON $IRONIC_STAGING_DRIVERS_DIR/tools/list-package-entrypoints.py ironic-staging-drivers"
+if [[ -n "$IRONIC_STAGING_DRIVERS_SKIPS" ]]; then
+    IRONIC_STAGING_LIST_EP_CMD+=" -s $IRONIC_STAGING_DRIVERS_SKIPS"
+fi
+if [[ -n "$IRONIC_STAGING_DRIVERS_FILTERS" ]]; then
+    IRONIC_STAGING_LIST_EP_CMD+=" -f $IRONIC_STAGING_DRIVERS_FILTERS"
+fi
+
+IRONIC_STAGING_INTERFACE_TYPES="boot deploy power management console inspect raid vendor storage network"
+# NOTE(pas-ha) these are copied from ironic's sample config
+# as ironic's devstack plugin does not have defaults for them,
+# but we need to enable them explicitly when adding interfaces from staging drivers
+# TODO(pas-ha) propose using explicit defaults to ironic's devstack plugin
+IRONIC_STAGING_DEFAULT_POWER_INTERFACES="ipmitool"
+IRONIC_STAGING_DEFAULT_BOOT_INTERFACES="pxe"
+IRONIC_STAGING_DEFAULT_MANAGEMENT_INTERFACES="ipmitool"
+IRONIC_STAGING_DEFAULT_DEPLOY_INTERFACES="iscsi,direct"
+IRONIC_STAGING_DEFAULT_CONSOLE_INTERFACES="no-console"
+IRONIC_STAGING_DEFAULT_INSPECT_INTERFACES="no-inspect"
+IRONIC_STAGING_DEFAULT_RAID_INTERFACES="agent,no-raid"
+IRONIC_STAGING_DEFAULT_VENDOR_INTERFACES="ipmitool,no-vendor"
+IRONIC_STAGING_DEFAULT_STORAGE_INTERFACES="cider,noop"
+IRONIC_STAGING_DEFAULT_NETWORK_INTERFACES="flat,noop"
+
+function setup_ironic_enabled_interfaces_for {
+
+    local iface=$1
+    local iface_var
+    local ironic_iface_var
+    local implicit_defaults_var
+    local enabled_ifs
+    local staging_ifs
+    iface_var=$(echo $iface | tr '[:lower:]' '[:upper:]')
+    ironic_iface_var="IRONIC_ENABLED_${iface_var}_INTERFACES"
+    implicit_defaults_var="IRONIC_STAGING_DEFAULT_${iface_var}_INTERFACES"
+    staging_ifs=$($IRONIC_STAGING_LIST_EP_CMD -t ironic.hardware.interfaces.${iface})
+
+    if [[ -n ${staging_ifs} ]]; then
+        if [[ -z "${!ironic_iface_var}" ]]; then
+            enabled_ifs="${!implicit_defaults_var}"
+        else
+            enabled_ifs="${!ironic_iface_var}"
+        fi
+        # NOTE(pas-ha) need fake management interface enabled for staging-wol hw type,
+        # and even if WoL is disabled by skips or filters, no harm in enabling it any way
+        if [[ $iface == 'management' ]]; then
+            enabled_ifs+=",fake"
+        fi
+        iniset $IRONIC_CONF_FILE DEFAULT "enabled_${iface}_interfaces" "$enabled_ifs,$staging_ifs"
+    fi
+}
 
 function update_ironic_enabled_drivers {
-    local saveIFS
-    saveIFS=$IFS
-    IFS=","
-    while read driver; do
-        if [[ ! $IRONIC_ENABLED_DRIVERS =~ $(echo "\<$driver\>") ]]; then
-           if [[ -z "$IRONIC_ENABLED_DRIVERS" ]]; then
-               IRONIC_ENABLED_DRIVERS="$driver"
-           else
-               IRONIC_ENABLED_DRIVERS+=",$driver"
-           fi
-        fi
-    done < $IRONIC_STAGING_DRIVERS_DIR/devstack/enabled-drivers.txt
-    IFS=$saveIFS
+    # NOTE(pas-ha) not carying about possible duplicates any more,
+    #              as it was fixed in ironic already
     # NOTE(vsaienko) if ironic-staging-drivers are called after ironic
-    # setting IRONIC_ENABLED_DRIVERS will not take affect. Update ironic
-    # configuration explicitly.
+    # setting IRONIC_ENABLED_* will not take affect. Update ironic
+    # configuration explicitly for each option.
+    local staging_drivers
+    local staging_hw_types
+
+    # TODO(pas-ha) remove setting classic drivers after ansible driver can
+    #              be set up via hardware type
+    # classic drivers
+    staging_drivers=$($IRONIC_STAGING_LIST_EP_CMD -t ironic.drivers)
+    if [[ -z "$IRONIC_ENABLED_DRIVERS" ]]; then
+        IRONIC_ENABLED_DRIVERS="$staging_drivers"
+    else
+        IRONIC_ENABLED_DRIVERS+=",$staging_drivers"
+    fi
     iniset $IRONIC_CONF_FILE DEFAULT enabled_drivers "$IRONIC_ENABLED_DRIVERS"
 
-    # set logging for ansible-deploy
-    # NOTE(pas-ha) w/o systemd or syslog, there will be no output of single
-    # ansible tasks to ironic log, only in the stdout returned by processutils
-    if [[ "$USE_SYSTEMD" == "True" ]]; then
-        iniset $IRONIC_STAGING_DRIVERS_DIR/ironic_staging_drivers/ansible/playbooks/callback_plugins/ironic_log.ini ironic use_journal "True"
-    elif [[ "$SYSLOG" == "True" ]]; then
-        iniset $IRONIC_STAGING_DRIVERS_DIR/ironic_staging_drivers/ansible/playbooks/callback_plugins/ironic_log.ini ironic use_syslog "True"
+    # hardware types
+    staging_hw_types=$($IRONIC_STAGING_LIST_EP_CMD -t ironic.hardware.types)
+    if [[ -z "$IRONIC_ENABLED_HARDWARE_TYPES" ]]; then
+        IRONIC_ENABLED_HARDWARE_TYPES="$staging_hw_types"
+    else
+        IRONIC_ENABLED_HARDWARE_TYPES+=",$staging_hw_types"
     fi
+    iniset $IRONIC_CONF_FILE DEFAULT enabled_hardware_types "$IRONIC_ENABLED_HARDWARE_TYPES"
+
+    # NOTE(pas-ha) find and enable any type of ironic hardware interface
+    # registered by ironic-staging-drivers package (minding skips and filters)
+    for i in $IRONIC_STAGING_INTERFACE_TYPES; do
+        setup_ironic_enabled_interfaces_for $i
+    done
 }
 
 function install_ironic_staging_drivers {
@@ -107,6 +168,16 @@ function set_ansible_deploy_driver {
             --driver-info ansible_deploy_username=tc \
             --driver-info ansible_deploy_key_file=$ansible_key_file
     done
+
+    # set logging for ansible-deploy
+    # NOTE(ps-ha) we can do it this late as this config is read by our custom Ansible callback plugin only
+    # NOTE(pas-ha) w/o systemd or syslog, there will be no output of single
+    # ansible tasks to ironic log, only in the stdout returned by processutils
+    if [[ "$USE_SYSTEMD" == "True" ]]; then
+        iniset $IRONIC_STAGING_DRIVERS_DIR/ironic_staging_drivers/ansible/playbooks/callback_plugins/ironic_log.ini ironic use_journal "True"
+    elif [[ "$SYSLOG" == "True" ]]; then
+        iniset $IRONIC_STAGING_DRIVERS_DIR/ironic_staging_drivers/ansible/playbooks/callback_plugins/ironic_log.ini ironic use_syslog "True"
+    fi
 }
 
 echo_summary "ironic-staging-drivers plugin.sh was called..."
