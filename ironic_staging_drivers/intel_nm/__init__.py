@@ -11,6 +11,7 @@
 # under the License.
 
 from ironic.drivers import base
+from ironic.drivers import ipmi
 from ironic.drivers.modules import agent
 from ironic.drivers.modules import fake
 from ironic.drivers.modules import inspector
@@ -57,3 +58,16 @@ class AgentAndIPMIToolIntelNMDriver(base.BaseDriver):
         self.raid = agent.AgentRAID()
         self.inspect = inspector.Inspector.create_if_enabled(
             'AgentAndIPMIToolDriver')
+
+
+class IntelNMHardware(ipmi.IPMIHardware):
+    """Intel NM hardware type.
+
+    Hardware type with Intel Node Manager vendor methods.
+    """
+
+    @property
+    def supported_vendor_interfaces(self):
+        """List of supported vendor interfaces."""
+        return (super(IntelNMHardware, self).supported_vendor_interfaces +
+                [nm_vendor.IntelNMVendorPassthru])
