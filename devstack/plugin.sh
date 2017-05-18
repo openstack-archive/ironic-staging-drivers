@@ -4,25 +4,73 @@
 IRONIC_STAGING_DRIVERS_DIR=$DEST/ironic-staging-drivers
 IRONIC_DRIVERS_EXCLUDED_DIRS='tests common'
 IRONIC_STAGING_DRIVER=${IRONIC_STAGING_DRIVER:-}
+# NOTE(pas-ha) skip iboot drivers by default as they require package not available on PyPI
+IRONIC_STAGING_DRIVERS_SKIPS=${IRONIC_STAGING_DRIVERS_SKIPS:-"iboot"}
+IRONIC_STAGING_DRIVERS_FILTERS=${IRONIC_STAGING_DRIVERS_FILTERS:-}
+IRONIC_STAGING_LIST_EP_CMD="$PYTHON $IRONIC_STAGING_DRIVERS_DIR/tools/list-package-entrypoints.py ironic-staging-drivers"
+if [[ -n "$IRONIC_STAGING_DRIVERS_SKIPS" ]]; then
+    IRONIC_STAGING_LIST_EP_CMD+=" -s $IRONIC_STAGING_DRIVERS_SKIPS"
+fi
+if [[ -n "$IRONIC_STAGING_DRIVERS_FILTERS" ]]; then
+    IRONIC_STAGING_LIST_EP_CMD+=" -f $IRONIC_STAGING_DRIVERS_FILTERS"
+fi
+
+function setup_ironic_enabled_interfaces_for {
+
+    local iface=$1
+    local iface_var
+    local ironic_iface_var
+    local staging_ifs
+    iface_var=$(echo $iface | tr '[:lower:]' '[:upper:]')
+    ironic_iface_var="IRONIC_ENABLED_${iface_var}_INTERFACES"
+    staging_ifs=$($IRONIC_STAGING_LIST_EP_CMD -t ironic.hardware.interfaces.${iface})
+
+    # NOTE(pas-ha) need fake management interface enabled for staging-wol hw type,
+    # and even if WoL is disabled by skips or filters, no harm in enabling it any way
+    if [[ $iface == 'management' ]]; then
+        if [[ -n ${staging_ifs} ]]; then
+            staging_ifs+=",fake"
+        else
+            staging_ifs='fake'
+        fi
+    fi
+
+    if [[ -n ${staging_ifs} ]]; then
+        iniset $IRONIC_CONF_FILE DEFAULT "enabled_${iface}_interfaces" "${!ironic_iface_var},$staging_ifs"
+    fi
+}
 
 function update_ironic_enabled_drivers {
-    local saveIFS
-    saveIFS=$IFS
-    IFS=","
-    while read driver; do
-        if [[ ! $IRONIC_ENABLED_DRIVERS =~ $(echo "\<$driver\>") ]]; then
-           if [[ -z "$IRONIC_ENABLED_DRIVERS" ]]; then
-               IRONIC_ENABLED_DRIVERS="$driver"
-           else
-               IRONIC_ENABLED_DRIVERS+=",$driver"
-           fi
-        fi
-    done < $IRONIC_STAGING_DRIVERS_DIR/devstack/enabled-drivers.txt
-    IFS=$saveIFS
+    # NOTE(pas-ha) not carying about possible duplicates any more,
+    #              as it was fixed in ironic already
     # NOTE(vsaienko) if ironic-staging-drivers are called after ironic
-    # setting IRONIC_ENABLED_DRIVERS will not take affect. Update ironic
-    # configuration explicitly.
+    # setting IRONIC_ENABLED_* will not take affect. Update ironic
+    # configuration explicitly for each option.
+    local staging_drivers
+    local staging_hw_types
+
+    staging_drivers=$($IRONIC_STAGING_LIST_EP_CMD -t ironic.drivers)
+    if [[ -z "$IRONIC_ENABLED_DRIVERS" ]]; then
+        IRONIC_ENABLED_DRIVERS="$staging_drivers"
+    else
+        IRONIC_ENABLED_DRIVERS+=",$staging_drivers"
+    fi
     iniset $IRONIC_CONF_FILE DEFAULT enabled_drivers "$IRONIC_ENABLED_DRIVERS"
+
+    # hardware types
+    staging_hw_types=$($IRONIC_STAGING_LIST_EP_CMD -t ironic.hardware.types)
+    if [[ -z "$IRONIC_ENABLED_HARDWARE_TYPES" ]]; then
+        IRONIC_ENABLED_HARDWARE_TYPES="$staging_hw_types"
+    else
+        IRONIC_ENABLED_HARDWARE_TYPES+=",$staging_hw_types"
+    fi
+    iniset $IRONIC_CONF_FILE DEFAULT enabled_hardware_types "$IRONIC_ENABLED_HARDWARE_TYPES"
+
+    # NOTE(pas-ha) find and enable any type of ironic hardware interface
+    # registered by ironic-staging-drivers package (minding skips and filters)
+    for i in $IRONIC_DRIVER_INTERFACE_TYPES; do
+        setup_ironic_enabled_interfaces_for $i
+    done
 
     # set logging for ansible-deploy
     # NOTE(pas-ha) w/o systemd or syslog, there will be no output of single

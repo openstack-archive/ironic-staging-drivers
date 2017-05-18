@@ -11,11 +11,13 @@
 # under the License.
 
 from ironic.drivers import base
+from ironic.drivers import generic
 from ironic.drivers.modules import agent
 from ironic.drivers.modules import fake
 from ironic.drivers.modules import iscsi_deploy
 from ironic.drivers.modules import pxe
 
+from ironic_staging_drivers.ansible import deploy as ansible_deploy
 from ironic_staging_drivers.libvirt import power
 
 
@@ -65,3 +67,27 @@ class PXELibvirtISCSIDriver(base.BaseDriver):
         self.boot = pxe.PXEBoot()
         self.deploy = iscsi_deploy.ISCSIDeploy()
         self.management = power.LibvirtManagement()
+
+
+class LibvirtHardware(generic.GenericHardware):
+    """Libvirt hardware type.
+
+    Uses Libvirt for power and management.
+    Also support ansible-deploy.
+    """
+
+    @property
+    def supported_deploy_interfaces(self):
+        """List of supported deploy interfaces."""
+        return (super(LibvirtHardware, self).supported_deploy_interfaces +
+                [ansible_deploy.AnsibleDeploy])
+
+    @property
+    def supported_management_interfaces(self):
+        """List of supported management interfaces."""
+        return [power.LibvirtManagement]
+
+    @property
+    def supported_power_interfaces(self):
+        """List of supported power interfaces."""
+        return [power.LibvirtPower]
