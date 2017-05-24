@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    ansible-deploy driver now supports standard ironic mechanism of
+    driver metrics collection.
