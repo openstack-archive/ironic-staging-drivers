@@ -23,6 +23,7 @@ from ironic_lib import utils as irlib_utils
 from oslo_concurrency import processutils
 from oslo_config import cfg
 from oslo_log import log
+from oslo_utils import strutils
 from oslo_utils import units
 import retrying
 import six
@@ -386,7 +387,10 @@ class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
 
     def get_properties(self):
         """Return the properties of the interface."""
-        return COMMON_PROPERTIES
+        props = COMMON_PROPERTIES.copy()
+        # NOTE(pas-ha) this is to get the deploy_forces_oob_reboot property
+        props.update(agent_base.VENDOR_PROPERTIES)
+        return props
 
     def validate(self, task):
         """Validate the driver-specific Node deployment info."""
@@ -409,7 +413,9 @@ class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
 
     def _ansible_deploy(self, task, node_address):
         """Internal function for deployment to a node."""
-        notags = ['wait'] if CONF.ansible.use_ramdisk_callback else []
+        notags = ['shutdown']
+        if CONF.ansible.use_ramdisk_callback:
+            notags.append('wait')
         node = task.node
         LOG.debug('IP of node %(node)s is %(ip)s',
                   {'node': node.uuid, 'ip': node_address})
@@ -622,21 +628,33 @@ class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
             return task.driver.power.get_power_state(task)
 
         node = task.node
+        oob_power_off = strutils.bool_from_string(
+            node.driver_info.get('deploy_forces_oob_reboot', False))
         try:
-            try:
-                _wait_until_powered_off(task)
-            except Exception as e:
-                LOG.warning(_LW('Failed to soft power off node %(node_uuid)s '
-                                'in at least %(timeout)d seconds. '
-                                'Error: %(error)s'),
-                            {'node_uuid': task.node.uuid,
-                             'timeout': (wait * (attempts - 1)) / 1000,
-                             'error': e})
-                # NOTE(pas-ha) flush is a part of deploy playbook
-                # so if it finished successfully we can safely
-                # power off the node out-of-band
+            if not oob_power_off:
+                try:
+                    node_address = _get_node_ip(task)
+                    playbook, user, key = _parse_ansible_driver_info(
+                        node)
+                    node_list = [(node.uuid, node_address, user, node.extra)]
+                    extra_vars = _prepare_extra_vars(node_list)
+                    _run_playbook(playbook, extra_vars, key,
+                                  tags=['shutdown'])
+                    _wait_until_powered_off(task)
+                except Exception as e:
+                    LOG.warning(
+                        _LW('Failed to soft power off node %(node_uuid)s '
+                            'in at least %(timeout)d seconds. '
+                            'Error: %(error)s'),
+                        {'node_uuid': node.uuid,
+                         'timeout': (wait * (attempts - 1)) / 1000,
+                         'error': e})
+                    # NOTE(pas-ha) flush is a part of deploy playbook
+                    # so if it finished successfully we can safely
+                    # power off the node out-of-band
+                    manager_utils.node_power_action(task, states.POWER_OFF)
+            else:
                 manager_utils.node_power_action(task, states.POWER_OFF)
-
             task.driver.network.remove_provisioning_network(task)
             task.driver.network.configure_tenant_networks(task)
             manager_utils.node_power_action(task, states.POWER_ON)
