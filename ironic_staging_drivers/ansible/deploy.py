@@ -154,7 +154,8 @@ def _get_configdrive_path(basename):
     return os.path.join(CONF.tempdir, basename + '.cndrive')
 
 
-def _get_node_ip(task):
+def _get_node_ip_dhcp(task):
+    """Get node IP from DHCP provider."""
     api = dhcp_factory.DHCPFactory().provider
     ip_addrs = api.get_ip_addresses(task)
     if not ip_addrs:
@@ -167,6 +168,18 @@ def _get_node_ip(task):
         raise exception.InstanceDeployFailure(reason=error)
 
     return ip_addrs[0]
+
+
+def _get_node_ip_heartbeat(task):
+    callback_url = task.node.driver_internal_info.get('agent_url', '')
+    return urlparse.urlparse(callback_url).netloc.split(':')[0]
+
+
+def _get_node_ip(task):
+    if CONF.ansible.use_ramdisk_callback:
+        return _get_node_ip_heartbeat(task)
+    else:
+        return _get_node_ip_dhcp(task)
 
 
 # some good code from agent
@@ -323,7 +336,10 @@ def _prepare_variables(task):
 def _validate_clean_steps(steps, node_uuid):
     missing = []
     for step in steps:
-        name = step.setdefault('name', 'unnamed')
+        name = step.get('name')
+        if not name:
+            missing.append({'name': 'undefined', 'field': 'name'})
+            continue
         if 'interface' not in step:
             missing.append({'name': name, 'field': 'interface'})
         args = step.get('args', {})
@@ -338,12 +354,17 @@ def _validate_clean_steps(steps, node_uuid):
         LOG.error(msg)
         raise exception.NodeCleaningFailure(node=node_uuid,
                                             reason=msg)
+    if len(set(s['name'] for s in steps)) != len(steps):
+        msg = _("Cleaning steps do not have unique names.")
+        LOG.error(msg)
+        raise exception.NodeCleaningFailure(node=node_uuid,
+                                            reason=msg)
 
 
-def _get_clean_steps(task, interface=None, override_priorities=None):
+def _get_clean_steps(node, interface=None, override_priorities=None):
     """Get cleaning steps."""
-    clean_steps_file = task.node.driver_info.get('ansible_clean_steps_config',
-                                                 DEFAULT_CLEAN_STEPS)
+    clean_steps_file = node.driver_info.get('ansible_clean_steps_config',
+                                            DEFAULT_CLEAN_STEPS)
     path = os.path.join(CONF.ansible.playbooks_path, clean_steps_file)
     try:
         with open(path) as f:
@@ -351,9 +372,9 @@ def _get_clean_steps(task, interface=None, override_priorities=None):
     except Exception as e:
         msg = _('Failed to load clean steps from file '
                 '%(file)s: %(exc)s') % {'file': path, 'exc': e}
-        raise exception.NodeCleaningFailure(node=task.node.uuid, reason=msg)
+        raise exception.NodeCleaningFailure(node=node.uuid, reason=msg)
 
-    _validate_clean_steps(internal_steps, task.node.uuid)
+    _validate_clean_steps(internal_steps, node.uuid)
 
     steps = []
     override = override_priorities or {}
@@ -454,8 +475,9 @@ class AnsibleDeploy(base.DeployInterface):
         manager_utils.node_power_action(task, states.REBOOT)
         if CONF.ansible.use_ramdisk_callback:
             return states.DEPLOYWAIT
+
         node = task.node
-        ip_addr = _get_node_ip(task)
+        ip_addr = _get_node_ip_dhcp(task)
         try:
             _deploy(task, ip_addr)
         except Exception as e:
@@ -515,7 +537,7 @@ class AnsibleDeploy(base.DeployInterface):
             'erase_devices_metadata':
                 CONF.deploy.erase_devices_metadata_priority
         }
-        return _get_clean_steps(task, interface='deploy',
+        return _get_clean_steps(task.node, interface='deploy',
                                 override_priorities=new_priorities)
 
     def execute_clean_step(self, task, step):
@@ -529,13 +551,14 @@ class AnsibleDeploy(base.DeployInterface):
         playbook, user, key = _parse_ansible_driver_info(
             task.node, action='clean')
         stepname = step['step']
-        try:
-            ip_addr = node.driver_internal_info['ansible_cleaning_ip']
-        except KeyError:
-            raise exception.NodeCleaningFailure(node=node.uuid,
-                                                reason='undefined node IP '
-                                                'addresses')
-        node_list = [(node.uuid, ip_addr, user, node.extra)]
+
+        if (not CONF.ansible.use_ramdisk_callback and
+            'ansible_cleaning_ip' in node.driver_internal_info):
+                node_address = node.driver_internal_info['ansible_cleaning_ip']
+        else:
+            node_address = _get_node_ip(task)
+
+        node_list = [(node.uuid, node_address, user, node.extra)]
         extra_vars = _prepare_extra_vars(node_list)
 
         LOG.debug('Starting cleaning step %(step)s on node %(node)s',
@@ -576,7 +599,7 @@ class AnsibleDeploy(base.DeployInterface):
         if use_callback:
             return states.CLEANWAIT
 
-        ip_addr = _get_node_ip(task)
+        ip_addr = _get_node_ip_dhcp(task)
         LOG.debug('IP of node %(node)s is %(ip)s',
                   {'node': node.uuid, 'ip': ip_addr})
         driver_internal_info = node.driver_internal_info
@@ -641,7 +664,7 @@ class AnsibleDeploy(base.DeployInterface):
             task.upgrade_lock(purpose='clean')
             node = task.node
             driver_internal_info = node.driver_internal_info
-            driver_internal_info['ansible_cleaning_ip'] = address
+            driver_internal_info['agent_url'] = callback_url
             node.driver_internal_info = driver_internal_info
             node.save()
             try:
