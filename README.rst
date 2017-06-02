@@ -14,8 +14,8 @@ What the Ironic Staging Drivers is not
 ---------------------------------------
 
 * The Ironic Staging Drivers is **not** a project under Ironic's
-  governance, meaning that the Ironic core group is **not resposible**
-  for the code in this project (even tho, some individuals that work in
+  governance, meaning that the Ironic core group is **not responsible**
+  for the code in this project (even though, some individuals that work in
   this project also hold core status in the Ironic project).
 
 * This project is **not** a place to dump code and run away hoping that
