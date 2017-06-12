@@ -212,46 +212,57 @@ class TestAnsibleMethods(db_base.DbTestCase):
             ansible_deploy.INVENTORY_FILE, '-e', '{"ironic": {"foo": "bar"}}',
             '--private-key=/path/to/key')
 
-    def test__parse_partitioning_info_root_only(self):
+    def test__parse_partitioning_info_root_msdos(self):
         expected_info = {
             'partition_info': {
+                'label': 'msdos',
                 'partitions': [
-                    {'name': 'root',
-                     'size_mib': INSTANCE_INFO['root_mb'],
-                     'boot': 'yes',
-                     'swap': 'no'}
+                    {'unit': 'MiB',
+                     'size': INSTANCE_INFO['root_mb'],
+                     'name': 'root',
+                     'flags': {'boot': 'yes'}}
                 ]}}
 
         i_info = ansible_deploy._parse_partitioning_info(self.node)
 
         self.assertEqual(expected_info, i_info)
 
-    def test__parse_partitioning_info_all(self):
+    def test__parse_partitioning_info_all_gpt(self):
         in_info = dict(INSTANCE_INFO)
         in_info['swap_mb'] = 128
         in_info['ephemeral_mb'] = 256
         in_info['ephemeral_format'] = 'ext4'
         in_info['preserve_ephemeral'] = True
+        in_info['configdrive'] = 'some-fake-user-data'
+        in_info['capabilities'] = {'disk_label': 'gpt'}
         self.node.instance_info = in_info
         self.node.save()
 
         expected_info = {
             'partition_info': {
+                'label': 'gpt',
                 'ephemeral_format': 'ext4',
                 'preserve_ephemeral': 'yes',
                 'partitions': [
-                    {'name': 'root',
-                     'size_mib': INSTANCE_INFO['root_mb'],
-                     'boot': 'yes',
-                     'swap': 'no'},
-                    {'name': 'swap',
-                     'size_mib': 128,
-                     'boot': 'no',
-                     'swap': 'yes'},
-                    {'name': 'ephemeral',
-                     'size_mib': 256,
-                     'boot': 'no',
-                     'swap': 'no'},
+                    {'unit': 'MiB',
+                     'size': 1,
+                     'name': 'bios',
+                     'flags': {'bios_grub': 'yes'}},
+                    {'unit': 'MiB',
+                     'size': 256,
+                     'name': 'ephemeral',
+                     'format': 'ext4'},
+                    {'unit': 'MiB',
+                     'size': 128,
+                     'name': 'swap',
+                     'format': 'linux-swap'},
+                    {'unit': 'MiB',
+                     'size': 64,
+                     'name': 'configdrive',
+                     'format': 'fat32'},
+                    {'unit': 'MiB',
+                     'size': INSTANCE_INFO['root_mb'],
+                     'name': 'root'}
                 ]}}
 
         i_info = ansible_deploy._parse_partitioning_info(self.node)

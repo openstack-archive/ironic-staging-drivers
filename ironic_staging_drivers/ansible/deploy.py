@@ -249,31 +249,54 @@ def _parse_partitioning_info(node):
     info = node.instance_info
     i_info = {}
     partitions = []
-    root_partition = {'name': 'root',
-                      'size_mib': info['root_mb'],
-                      'boot': 'yes',
-                      'swap': 'no'}
-    partitions.append(root_partition)
+    i_info['label'] = deploy_utils.get_disk_label(node) or 'msdos'
+
+    # prepend 1MiB bios_grub partition for GPT so that grub(2) installs
+    if i_info['label'] == 'gpt':
+        bios_partition = {'name': 'bios',
+                          'size': 1,
+                          'unit': 'MiB',
+                          'flags': {'bios_grub': 'yes'}}
+        partitions.append(bios_partition)
+
+    ephemeral_mb = info['ephemeral_mb']
+    if ephemeral_mb:
+        i_info['ephemeral_format'] = info['ephemeral_format']
+        ephemeral_partition = {'name': 'ephemeral',
+                               'size': ephemeral_mb,
+                               'unit': 'MiB',
+                               'format': i_info['ephemeral_format']}
+        partitions.append(ephemeral_partition)
+
+        i_info['preserve_ephemeral'] = (
+            'yes' if info['preserve_ephemeral'] else 'no')
 
     swap_mb = info['swap_mb']
     if swap_mb:
         swap_partition = {'name': 'swap',
-                          'size_mib': swap_mb,
-                          'boot': 'no',
-                          'swap': 'yes'}
+                          'size': swap_mb,
+                          'unit': 'MiB',
+                          'format': 'linux-swap'}
         partitions.append(swap_partition)
 
-    ephemeral_mb = info['ephemeral_mb']
-    if ephemeral_mb:
-        ephemeral_partition = {'name': 'ephemeral',
-                               'size_mib': ephemeral_mb,
-                               'boot': 'no',
-                               'swap': 'no'}
-        partitions.append(ephemeral_partition)
+    # pre-create partition for configdrive
+    configdrive = info.get('configdrive')
+    if configdrive:
+        configdrive_partition = {'name': 'configdrive',
+                                 'size': 64,
+                                 'unit': 'MiB',
+                                 'format': 'fat32'}
+        partitions.append(configdrive_partition)
 
-        i_info['ephemeral_format'] = info['ephemeral_format']
-        i_info['preserve_ephemeral'] = (
-            'yes' if info['preserve_ephemeral'] else 'no')
+    # NOTE(pas-ha) make the root partition last so that
+    # e.g. cloud-init can grow it on first start
+    root_partition = {'name': 'root',
+                      'size': info['root_mb'],
+                      'unit': 'MiB'}
+    if i_info['label'] == 'msdos':
+        root_partition['flags'] = {'boot': 'yes'}
+
+    partitions.append(root_partition)
 
     i_info['partitions'] = partitions
     return {'partition_info': i_info}
