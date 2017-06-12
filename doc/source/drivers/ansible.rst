@@ -69,13 +69,15 @@ Supports whole-disk images and partition images:
 For partition images the driver will create root partition, and,
 if requested, ephemeral and swap partitions as set in node's
 ``instance_info`` by nova or operator.
-Partition table created will be of ``msdos`` type.
+Partition table created will be of ``msdos`` type by default,
+the node's``disk_label`` capability is honored if it is set in node's
+``instance_info``.
 
 Configdrive partition
 ~~~~~~~~~~~~~~~~~~~~~
 
 Creating a configdrive partition is supported for both whole disk
-and partition images.
+and partition images, on both ``msdos`` and ``GPT`` labeled disks.
 
 Root device hints
 ~~~~~~~~~~~~~~~~~
@@ -121,7 +123,7 @@ Requirements
 ============
 
 ironic
-    Requires ironic of Newton release or newer.
+    Requires ironic version >= 8.0.0. (Pike release or newer).
 
 Ansible
     Tested with and targets Ansible ≥ 2.1
@@ -414,6 +416,7 @@ Those values are then accessible in your plays as well
        type: <url|file>
        location: <URL OR PATH ON CONDUCTOR>
      partition_info:
+       label: <msdos|gpt>
        preserve_ephemeral: <bool>
        ephemeral_format: <FILESYSTEM TO CREATE ON EPHEMERAL PARTITION>
        partitions: <LIST OF PARTITIONS IN FORMAT EXPECTED BY PARTED MODULE>
@@ -444,15 +447,23 @@ Some more explanations:
 
        partitions:
        - name: <NAME OF PARTITION>
-         size_mib: <SIZE OF THE PARTITION>
-         boot: <bool>
-         swap: <bool>
+         unit: <UNITS FOR SIZE>
+         size: <SIZE OF THE PARTITION>
+         type: <primary|extended|logical>
+         align: <ONE OF PARTED_SUPPORTED OPTIONS>
+         format: <PARTITION TYPE TO SET>
+         flags:
+           flag_name: <bool>
 
     The driver will populate this list from ``root_gb``, ``swap_mb`` and
     ``ephemeral_gb`` fields of ``instance_info``.
+    The driver will also prepend the ``bios_grub``-labeled partition
+    when deploying on GPT-labeled disk,
+    and pre-create a 64MiB partiton for configdrive if it is set in
+    ``instance_info``.
 
-    Please read the documentation included in the ``parted`` module's source
-    for more info on the module and its arguments.
+    Please read the documentation included in the ``ironic_parted`` module's
+    source for more info on the module and its arguments.
 
 ``ironic.partiton_info.ephemeral_format``
     Optional. Taken from ``instance_info``, it defines file system to be
@@ -481,10 +492,12 @@ You can use these modules in your playbooks as well.
     module arguments.
     Due to the low level of such operation it is not idempotent.
 
-``parted``
+``ironic_parted``
     creates partition tables and partitions with ``parted`` utility.
     Due to the low level of such operation it is not idempotent.
     Please read the documentation included in the module's source
     for more information about this module and its arguments.
+    The name is chosen so that the ``parted`` module included in Ansible 2.3
+    is not shadowed.
 
 .. _Ironic Python Agent: http://docs.openstack.org/developer/ironic-python-agent

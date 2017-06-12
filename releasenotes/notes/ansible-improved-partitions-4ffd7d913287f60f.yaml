@@ -1,0 +1,32 @@
+---
+features:
+  - |
+    ``parted`` module for Ansible was renamed to ``ironic_parted`` to not
+    shadow the ``parted`` module included in Ansible 2.3.
+    It was also rewritten to be cleaner and more stable
+
+    - changed accepted module arguments
+    - added support for units (MiB and % for now)
+    - added more validations
+    - left support for msdos and gpt partition tables only
+    - partitions are created one by one, and actual block devices created
+      are searched for and reported.
+
+  - |
+    Ansible-deploy with local-booted partition images now creates
+    a partitioning scheme that closer resembles what's being done by
+    drivers that use ``ironic-python-agent``.
+
+    - for partition images the root partition is the last one created
+      so that it can grow with e.g. when using cloud-init's growroot
+    - for whole-disk images, configdrive is created as far as possible
+
+upgrade:
+  - |
+    ``parted`` module previosly provided by ansible-deploy driver was renamed
+    to ``ironic_parted`` and has significantly changed its interface and
+    returned values.
+
+    **Any out-of-tree playbooks utilizing the ``parted`` module supplied that
+    was provided by ansible-deploy driver are incompatible with this release and
+    must be changed accordingly to use the new module name and arguments!**
