@@ -1,16 +1,16 @@
 - name: erase partition table
   become: yes
   command: dd if=/dev/zero of={{ ironic_root_device }} bs=512 count=36
-  when: "{{ not preserve_ephemeral|default('no')|bool }}"
+  when: "{{ not ironic.partition_info.preserve_ephemeral|default('no')|bool }}"
 
 - name: run parted
   become: yes
   parted:
     device: "{{ ironic_root_device }}"
-    dryrun: "{{ preserve_ephemeral|default('no')|bool }}"
-    new_label: yes
     label: msdos
-    partitions: "{{ ironic_partitions }}"
+    new_label: yes
+    dryrun: "{{ ironic.partition_info.preserve_ephemeral|default('no')|bool }}"
+    partitions: "{{ ironic.partition_info.partitions }}"
   register: parts
 
 - name: reset image target to root partition
@@ -24,5 +24,9 @@
 
 - name: format ephemeral partition
   become: yes
-  command: mkfs -F -t {{ ephemeral_format }} -L ephemeral0 {{ parts.created.ephemeral }}
-  when: "{{ parts.created.ephemeral is defined and not preserve_ephemeral|default('no')|bool }}"
+  filesystem:
+    dev: "{{ parts.created.ephemeral }}"
+    fstype: "{{ ironic.partition_info.ephemeral_format }}"
+    force: yes
+    opts: "-L ephemeral0"
+  when: "{{ parts.created.ephemeral is defined and not ironic.partition_info.preserve_ephemeral|default('no')|bool }}"

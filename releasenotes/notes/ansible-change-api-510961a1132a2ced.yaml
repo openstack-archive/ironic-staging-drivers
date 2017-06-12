@@ -1,0 +1,39 @@
+---
+features:
+  - |
+    Ansible-deploy driver has considerably changed in terms of playbook
+    structure and accepted incoming variables.
+
+    + all info passed into Ansible playbooks from ironic is now available in
+      the playbooks as elements of ``ironic`` dictionary to better
+      differentiate those from other vars possibly created/set
+      inside playbooks.
+
+    + any field of node's instance_info having a form of ``image_<field>``
+      is now available in playbooks as ``ironic.image.<field>`` variable.
+
+    + ``parted`` tag in playbooks is removed and instead differentiation
+      between partition and whole-disk imaged is being done based on
+      ``ironic.image.type`` variable value.
+
+    + ``shutdown`` tag is removed, and soft power-off is moved to a separate
+      playbook, defined by new optional ``driver_info`` field
+      ``ansible_shutdown_playbook`` (the default ``shutdown.yaml``
+      is provided in the code tree).
+
+    + default ``deploy`` role is split into smaller roles,
+      each targeting a separate stage of deployment process
+      to faciliate customiation and re-use
+
+      - ``discover`` - e.g. set root device and image target
+      - ``prepare`` - if needed, prepare system, e.g. create partitions
+      - ``deploy`` - download/convert/write user image and configdrive
+      - ``configure`` - post-deployment steps, e.g. installing the bootloader
+
+upgrade:
+  - |
+    Ansible-deploy driver has considerably changed in terms of playbook
+    structure and accepted incoming variables.
+
+    **Any out-of-tree playbooks written for previous versions are incompatible
+    with this release and must be changed at least to accept new variables!**
