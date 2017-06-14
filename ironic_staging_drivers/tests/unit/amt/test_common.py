@@ -212,5 +212,4 @@ class AwakeAMTInterfaceTestCase(db_base.DbTestCase):
 
     def test_out_range_protocol(self):
         self.assertRaises(ValueError, cfg.CONF.set_override,
-                          'protocol', 'fake', 'amt_driver',
-                          enforce_type=True)
+                          'protocol', 'fake', 'amt_driver')
