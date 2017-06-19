@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    ``ironic_log`` Ansible callback plugin for ansible-deploy driver can now be
+    configured to force usage of journald or syslog for logging Ansible events.

@@ -23,6 +23,15 @@ function update_ironic_enabled_drivers {
     # setting IRONIC_ENABLED_DRIVERS will not take affect. Update ironic
     # configuration explicitly.
     iniset $IRONIC_CONF_FILE DEFAULT enabled_drivers "$IRONIC_ENABLED_DRIVERS"
+
+    # set logging for ansible-deploy
+    # NOTE(pas-ha) w/o systemd or syslog, there will be no output of single
+    # ansible tasks to ironic log, only in the stdout returned by processutils
+    if [[ "$USE_SYSTEMD" == "True" ]]; then
+        iniset $IRONIC_STAGING_DRIVERS_DIR/ironic_staging_drivers/ansible/playbooks/callback_plugins/ironic_log.ini ironic use_journal "True"
+    elif [[ "$SYSLOG" == "True" ]]; then
+        iniset $IRONIC_STAGING_DRIVERS_DIR/ironic_staging_drivers/ansible/playbooks/callback_plugins/ironic_log.ini ironic use_syslog "True"
+    fi
 }
 
 function install_ironic_staging_drivers {
@@ -96,9 +105,6 @@ function set_ansible_deploy_driver {
             --driver-info ansible_deploy_username=tc \
             --driver-info ansible_deploy_key_file=$ansible_key_file
     done
-    # TODO(pas-ha) setup logging ansible callback plugin to log to specific file
-    # for now all ansible logs are seen in ir-cond logs when run in debug logging mode
-    # as stdout returned by processutils.execute
 }
 
 echo_summary "ironic-staging-drivers plugin.sh was called..."
