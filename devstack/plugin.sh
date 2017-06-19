@@ -23,6 +23,8 @@ function update_ironic_enabled_drivers {
     # setting IRONIC_ENABLED_DRIVERS will not take affect. Update ironic
     # configuration explicitly.
     iniset $IRONIC_CONF_FILE DEFAULT enabled_drivers "$IRONIC_ENABLED_DRIVERS"
+    # NOTE(pas-ha) force journald usage for Ansible started by ansible-deploy
+    iniset $IRONIC_STAGING_DRIVERS_DIR/ironic_staging_drivers/ansible/playbooks/callback_plugins/ironic_log.ini ironic use_journal 'True'
 }
 
 function install_ironic_staging_drivers {
