@@ -55,7 +55,7 @@ options:
         version_added: null
     label:
         description: |
-            type of a partition type to create;
+            type of a partition table to create;
             to use an existing partition table, omit it or pass null YAML value
         required: false
         default: none
@@ -74,7 +74,7 @@ options:
     partitions:
         description:|
             list of partitions. each entry is a dictionary in the form
-            - size: <int>, required, must be positive non-zero
+            - size: <int>, required, must be positive
               type: [primary, extended, logical], default is primary
               format: a format to pass to parted;
                       does not actually creates filesystems, only sets
@@ -148,14 +148,6 @@ def change_part_args(part_number, partition):
     for flag, state in partition['flags'].items():
         parted_args.extend(['set', part_number, flag, state])
     return parted_args
-
-
-def parse_lsblk_output(output):
-    devices = set()
-    for line in output.splitlines():
-        device = line.strip().split('=')[1]
-        devices.add(device.strip('"'))
-    return devices
 
 
 def parse_lsblk_json(output):
@@ -294,7 +286,6 @@ def main():
     lsblk_bin = module.get_bin_path('lsblk', required=True)
     udevadm_bin = module.get_bin_path('udevadm', required=True)
     parted = [parted_bin, '-s', device]
-    # lsblk = [lsblk_bin, '-o', 'NAME', '-P', device]
     lsblk = [lsblk_bin, '-J', device]
     if label:
         module.run_command(parted + ['mklabel', label], check_rc=True)
