@@ -30,7 +30,6 @@ from oslo_utils import importutils
 import six
 
 from ironic_staging_drivers.common.i18n import _
-from ironic_staging_drivers.common.i18n import _LW
 from ironic_staging_drivers.common import utils
 
 iboot = importutils.try_import('iboot')
@@ -127,9 +126,9 @@ def _switch(driver_info, enabled):
 
     def _wait_for_switch(mutable):
         if mutable['retries'] > CONF.iboot.max_retry:
-            LOG.warning(_LW(
+            LOG.warning(
                 'Reached maximum number of attempts (%(attempts)d) to set '
-                'power state for node %(node)s to "%(op)s"'),
+                'power state for node %(node)s to "%(op)s"',
                 {'attempts': mutable['retries'], 'node': driver_info['uuid'],
                  'op': states.POWER_ON if enabled else states.POWER_OFF})
             raise loopingcall.LoopingCallDone()
@@ -140,8 +139,8 @@ def _switch(driver_info, enabled):
             if mutable['response']:
                 raise loopingcall.LoopingCallDone()
         except (TypeError, IndexError):
-            LOG.warning(_LW("Cannot call set power state for node '%(node)s' "
-                            "at relay '%(relay)s'. iBoot switch() failed."),
+            LOG.warning("Cannot call set power state for node '%(node)s' "
+                        "at relay '%(relay)s'. iBoot switch() failed.",
                         {'node': driver_info['uuid'], 'relay': relay_id})
 
     mutable = {'response': False, 'retries': 0}
@@ -175,9 +174,9 @@ def _power_status(driver_info):
     def _wait_for_power_status(mutable):
 
         if mutable['retries'] > CONF.iboot.max_retry:
-            LOG.warning(_LW(
+            LOG.warning(
                 'Reached maximum number of attempts (%(attempts)d) to get '
-                'power state for node %(node)s'),
+                'power state for node %(node)s',
                 {'attempts': mutable['retries'], 'node': driver_info['uuid']})
             raise loopingcall.LoopingCallDone()
 
@@ -191,8 +190,8 @@ def _power_status(driver_info):
                 mutable['state'] = states.POWER_OFF
             raise loopingcall.LoopingCallDone()
         except (TypeError, IndexError):
-            LOG.warning(_LW("Cannot get power state for node '%(node)s' at "
-                            "relay '%(relay)s'. iBoot get_relays() failed."),
+            LOG.warning("Cannot get power state for node '%(node)s' at "
+                        "relay '%(relay)s'. iBoot get_relays() failed.",
                         {'node': driver_info['uuid'], 'relay': relay_id})
 
     mutable = {'state': states.ERROR, 'retries': 0}

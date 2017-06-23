@@ -25,8 +25,6 @@ from oslo_utils import excutils
 import six
 
 from ironic_staging_drivers.common.i18n import _
-from ironic_staging_drivers.common.i18n import _LE
-from ironic_staging_drivers.common.i18n import _LI
 from ironic_staging_drivers.intel_nm import nm_commands
 
 
@@ -67,8 +65,7 @@ def _get_nm_address(task):
     if channel is False and address is False:
         raise exception.IPMIFailure(_('Driver data indicates that Intel '
                                       'Node Manager detection failed.'))
-    LOG.info(_LI('Start detection of Intel Node Manager on node %s'),
-             node.uuid)
+    LOG.info('Start detection of Intel Node Manager on node %s', node.uuid)
     sdr_filename = os.path.join(CONF.tempdir, node.uuid + '.sdr')
     res = None
     try:
@@ -115,8 +112,8 @@ def _execute_nm_command(task, data, command_func, parse_func=None):
         channel, address = _get_nm_address(task)
     except exception.IPMIFailure as e:
         with excutils.save_and_reraise_exception():
-            LOG.exception(_LE('Can not obtain Intel Node Manager address for '
-                              'node %(node)s: %(err)s'),
+            LOG.exception('Can not obtain Intel Node Manager address for '
+                          'node %(node)s: %(err)s',
                           {'node': task.node.uuid, 'err': six.text_type(e)})
     driver_info = task.node.driver_info
     driver_info['ipmi_bridging'] = 'single'
@@ -129,9 +126,9 @@ def _execute_nm_command(task, data, command_func, parse_func=None):
             return parse_func(out.split())
         except exception.IPMIFailure as e:
             with excutils.save_and_reraise_exception():
-                LOG.exception(_LE('Error in returned data for node %(node)s: '
-                                  '%(err)s'), {'node': task.node.uuid,
-                                               'err': six.text_type(e)})
+                LOG.exception('Error in returned data for node %(node)s: '
+                              '%(err)s', {'node': task.node.uuid,
+                                          'err': six.text_type(e)})
 
 
 class IntelNMVendorPassthru(base.VendorInterface):

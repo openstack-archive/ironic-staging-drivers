@@ -21,7 +21,6 @@ import six
 
 from ironic_staging_drivers.common import exception
 from ironic_staging_drivers.common.i18n import _
-from ironic_staging_drivers.common.i18n import _LW
 
 
 LOG = log.getLogger(__name__)
@@ -500,8 +499,8 @@ def parse_statistics(raw_data):
     except exception.InvalidIPMITimestamp as e:
         # there is not "bad time" in standard, reset to start the epoch
         statistics['timestamp'] = _INVALID_TIME
-        LOG.warning(_LW('Invalid timestamp in Node Nanager statistics '
-                        'data: %s'), six.text_type(e))
+        LOG.warning('Invalid timestamp in Node Nanager statistics '
+                    'data: %s', six.text_type(e))
     else:
         statistics['timestamp'] = isotime
 

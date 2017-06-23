@@ -25,6 +25,8 @@ _ = _translators.primary
 # The abbreviated names are meant to reflect the usual use of a short
 # name like '_'. The "L" is for "log" and the other letter comes from
 # the level.
+# NOTE(pas-ha) no longer used actually as logs should no longer be translated,
+# remove in Queens
 _LI = _translators.log_info
 _LW = _translators.log_warning
 _LE = _translators.log_error

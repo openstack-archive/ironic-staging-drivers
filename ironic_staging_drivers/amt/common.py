@@ -27,7 +27,6 @@ import six
 
 from ironic_staging_drivers.common import exception
 from ironic_staging_drivers.common.i18n import _
-from ironic_staging_drivers.common.i18n import _LE
 
 pywsman = importutils.try_import('pywsman')
 
@@ -119,8 +118,8 @@ class Client(object):
         item = 'Fault'
         fault = xml_find(doc, _SOAP_ENVELOPE, item)
         if fault is not None:
-            LOG.error(_LE('Call to AMT with URI %(uri)s failed: '
-                          'got Fault %(fault)s'),
+            LOG.error('Call to AMT with URI %(uri)s failed: '
+                      'got Fault %(fault)s',
                       {'uri': resource_uri, 'fault': fault.text})
             raise exception.AMTFailure(cmd='wsman_get')
         return doc
@@ -143,9 +142,9 @@ class Client(object):
         item = "ReturnValue"
         return_value = xml_find(doc, resource_uri, item).text
         if return_value != RET_SUCCESS:
-            LOG.error(_LE("Call to AMT with URI %(uri)s and "
-                          "method %(method)s failed: return value "
-                          "was %(value)s"),
+            LOG.error("Call to AMT with URI %(uri)s and "
+                      "method %(method)s failed: return value "
+                      "was %(value)s",
                       {'uri': resource_uri, 'method': method,
                        'value': return_value})
             raise exception.AMTFailure(cmd='wsman_invoke')
@@ -246,8 +245,8 @@ def awake_amt_interface(node):
         try:
             ironic_utils.execute(*cmd_args)
         except processutils.ProcessExecutionError as err:
-            LOG.error(_LE('Unable to awake AMT interface on node '
-                          '%(node_id)s. Error: %(error)s'),
+            LOG.error('Unable to awake AMT interface on node '
+                      '%(node_id)s. Error: %(error)s',
                       {'node_id': node.uuid, 'error': err})
             raise exception.AMTConnectFailure()
         else:
