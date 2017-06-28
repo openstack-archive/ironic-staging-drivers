@@ -27,8 +27,6 @@ from ironic_staging_drivers.amt import common as amt_common
 from ironic_staging_drivers.amt import resource_uris
 from ironic_staging_drivers.common import exception
 from ironic_staging_drivers.common.i18n import _
-from ironic_staging_drivers.common.i18n import _LE
-from ironic_staging_drivers.common.i18n import _LI
 
 pywsman = importutils.try_import('pywsman')
 
@@ -88,13 +86,13 @@ def _set_boot_device_order(node, boot_device):
                             method, doc)
     except (exception.AMTFailure, exception.AMTConnectFailure) as e:
         with excutils.save_and_reraise_exception():
-            LOG.exception(_LE("Failed to set boot device %(boot_device)s for "
-                              "node %(node_id)s with error: %(error)s."),
+            LOG.exception("Failed to set boot device %(boot_device)s for "
+                          "node %(node_id)s with error: %(error)s.",
                           {'boot_device': boot_device, 'node_id': node.uuid,
                            'error': e})
     else:
-        LOG.info(_LI("Successfully set boot device %(boot_device)s for "
-                     "node %(node_id)s"),
+        LOG.info("Successfully set boot device %(boot_device)s for "
+                 "node %(node_id)s",
                  {'boot_device': boot_device, 'node_id': node.uuid})
 
 
@@ -142,11 +140,11 @@ def _enable_boot_config(node):
                             method, doc)
     except (exception.AMTFailure, exception.AMTConnectFailure) as e:
         with excutils.save_and_reraise_exception():
-            LOG.exception(_LE("Failed to enable boot config for node "
-                              "%(node_id)s with error: %(error)s."),
+            LOG.exception("Failed to enable boot config for node "
+                          "%(node_id)s with error: %(error)s.",
                           {'node_id': node.uuid, 'error': e})
     else:
-        LOG.info(_LI("Successfully enabled boot config for node %(node_id)s."),
+        LOG.info("Successfully enabled boot config for node %(node_id)s.",
                  {'node_id': node.uuid})
 
 

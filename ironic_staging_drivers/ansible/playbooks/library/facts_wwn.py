@@ -19,8 +19,6 @@ try:
 except ImportError:
     HAS_PYUDEV = False
 
-from ironic_staging_drivers.common.i18n import _LW
-
 
 COLLECT_INFO = (('wwn', 'WWN'), ('serial', 'SERIAL_SHORT'),
                 ('wwn_with_extension', 'WWN_WITH_EXTENSION'),
@@ -30,10 +28,10 @@ COLLECT_INFO = (('wwn', 'WWN'), ('serial', 'SERIAL_SHORT'),
 def get_devices_wwn(devices):
 
     if not HAS_PYUDEV:
-        LOG.warning(_LW('Can not collect "wwn", "wwn_with_extension", '
-                        '"wwn_vendor_extension" and "serial" when using '
-                        'root device hints because there\'s no UDEV python '
-                        'binds installed'))
+        LOG.warning('Can not collect "wwn", "wwn_with_extension", '
+                    '"wwn_vendor_extension" and "serial" when using '
+                    'root device hints because there\'s no UDEV python '
+                    'binds installed')
         return
 
     dev_dict = {}
@@ -43,8 +41,8 @@ def get_devices_wwn(devices):
         try:
             udev = pyudev.Device.from_device_file(context, name)
         except (ValueError, EnvironmentError, pyudev.DeviceNotFoundError) as e:
-            LOG.warning(_LW('Device %(dev)s is inaccessible, skipping... '
-                            'Error: %(error)s'), {'dev': name, 'error': e})
+            LOG.warning('Device %(dev)s is inaccessible, skipping... '
+                        'Error: %(error)s', {'dev': name, 'error': e})
             continue
 
         dev_dict[device] = {}

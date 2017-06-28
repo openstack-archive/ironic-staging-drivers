@@ -30,9 +30,6 @@ from ironic_staging_drivers.amt import common as amt_common
 from ironic_staging_drivers.amt import resource_uris
 from ironic_staging_drivers.common import exception
 from ironic_staging_drivers.common.i18n import _
-from ironic_staging_drivers.common.i18n import _LE
-from ironic_staging_drivers.common.i18n import _LI
-from ironic_staging_drivers.common.i18n import _LW
 
 pywsman = importutils.try_import('pywsman')
 
@@ -111,12 +108,12 @@ def _set_power_state(node, target_state):
                             method, doc)
     except (exception.AMTFailure, exception.AMTConnectFailure) as e:
         with excutils.save_and_reraise_exception():
-            LOG.exception(_LE("Failed to set power state %(state)s for "
-                              "node %(node_id)s with error: %(error)s."),
+            LOG.exception("Failed to set power state %(state)s for "
+                          "node %(node_id)s with error: %(error)s.",
                           {'state': target_state, 'node_id': node.uuid,
                            'error': e})
     else:
-        LOG.info(_LI("Power state set to %(state)s for node %(node_id)s"),
+        LOG.info("Power state set to %(state)s for node %(node_id)s",
                  {'state': target_state, 'node_id': node.uuid})
 
 
@@ -135,8 +132,8 @@ def _power_status(node):
         doc = client.wsman_get(namespace)
     except (exception.AMTFailure, exception.AMTConnectFailure) as e:
         with excutils.save_and_reraise_exception():
-            LOG.exception(_LE("Failed to get power state for node %(node_id)s "
-                              "with error: %(error)s."),
+            LOG.exception("Failed to get power state for node %(node_id)s "
+                          "with error: %(error)s.",
                           {'node_id': node.uuid, 'error': e})
 
     item = "PowerState"
@@ -178,8 +175,8 @@ def _set_and_wait(task, target_state):
 
         if status['iter'] >= CONF.amt_driver.max_attempts:
             status['power'] = states.ERROR
-            LOG.warning(_LW("AMT failed to set power state %(state)s after "
-                            "%(tries)s retries on node %(node_id)s."),
+            LOG.warning("AMT failed to set power state %(state)s after "
+                        "%(tries)s retries on node %(node_id)s.",
                         {'state': target_state, 'tries': status['iter'],
                          'node_id': node.uuid})
             raise loopingcall.LoopingCallDone()
@@ -188,9 +185,9 @@ def _set_and_wait(task, target_state):
             _set_power_state(node, target_state)
         except Exception:
             # Log failures but keep trying
-            LOG.warning(_LW("AMT set power state %(state)s for node %(node)s "
-                            "- Attempt %(attempt)s times of %(max_attempt)s "
-                            "failed."),
+            LOG.warning("AMT set power state %(state)s for node %(node)s "
+                        "- Attempt %(attempt)s times of %(max_attempt)s "
+                        "failed.",
                         {'state': target_state, 'node': node.uuid,
                          'attempt': status['iter'] + 1,
                          'max_attempt': CONF.amt_driver.max_attempts})
