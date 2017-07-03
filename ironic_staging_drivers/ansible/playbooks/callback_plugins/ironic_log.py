@@ -18,7 +18,6 @@ from oslo_config import cfg
 from oslo_log import log as logging
 import pbr.version
 
-from ironic_staging_drivers.common import i18n
 
 CONF = cfg.CONF
 DOMAIN = 'ironic'
@@ -83,26 +82,21 @@ class CallbackModule(object):
                       dict(name=name, node=node))
 
     def v2_runner_on_failed(self, result, *args, **kwargs):
-        LOG.error(i18n._LE(
-            "Ansible task %(name)s failed on node %(node)s: %(res)s"),
-            self.runner_msg_dict(result))
+        LOG.error("Ansible task %(name)s failed on node %(node)s: %(res)s",
+                  self.runner_msg_dict(result))
 
     def v2_runner_on_ok(self, result):
         msg_dict = self.runner_msg_dict(result)
         if msg_dict['name'] == 'setup':
-            LOG.info(i18n._LI(
-                "Ansible task 'setup' complete on node %(node)s"),
-                msg_dict)
+            LOG.info("Ansible task 'setup' complete on node %(node)s",
+                     msg_dict)
         else:
-            LOG.info(i18n._LI(
-                "Ansible task %(name)s complete on node %(node)s: %(res)s"),
-                msg_dict)
+            LOG.info("Ansible task %(name)s complete on node %(node)s: "
+                     "%(res)s", msg_dict)
 
     def v2_runner_on_unreachable(self, result):
-        LOG.error(i18n._LE(
-            "Node %(node)s was unreachable for Ansible task %(name)s: "
-            "%(res)s"),
-            self.runner_msg_dict(result))
+        LOG.error("Node %(node)s was unreachable for Ansible task %(name)s: "
+                  "%(res)s", self.runner_msg_dict(result))
 
     def v2_runner_on_async_poll(self, result):
         LOG.debug("Polled ansible task %(name)s for complete "
@@ -110,14 +104,12 @@ class CallbackModule(object):
                   self.runner_msg_dict(result))
 
     def v2_runner_on_async_ok(self, result):
-        LOG.info(i18n._LI(
-            "Async Ansible task %(name)s complete on node %(node)s: %(res)s"),
-            self.runner_msg_dict(result))
+        LOG.info("Async Ansible task %(name)s complete on node %(node)s: "
+                 "%(res)s", self.runner_msg_dict(result))
 
     def v2_runner_on_async_failed(self, result):
-        LOG.error(i18n._LE(
-            "Async Ansible task %(name)s failed on node %(node)s: %(res)s"),
-            self.runner_msg_dict(result))
+        LOG.error("Async Ansible task %(name)s failed on node %(node)s: "
+                  "%(res)s", self.runner_msg_dict(result))
 
     def v2_runner_on_skipped(self, result):
         LOG.debug("Ansible task %(name)s skipped on node %(node)s: %(res)s",

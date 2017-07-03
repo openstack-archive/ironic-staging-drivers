@@ -34,9 +34,6 @@ import yaml
 from ironic.common import dhcp_factory
 from ironic.common import exception
 from ironic.common.i18n import _
-from ironic.common.i18n import _LE
-from ironic.common.i18n import _LI
-from ironic.common.i18n import _LW
 from ironic.common import images
 from ironic.common import states
 from ironic.common import utils
@@ -555,8 +552,8 @@ class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
             _get_configdrive_path(task.node.uuid))
 
     def take_over(self, task):
-        LOG.error(_LE("Ansible deploy does not support take over. "
-                  "You must redeploy the node %s explicitly."),
+        LOG.error("Ansible deploy does not support take over. "
+                  "You must redeploy the node %s explicitly.",
                   task.node.uuid)
 
     def get_clean_steps(self, task):
@@ -602,13 +599,13 @@ class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
             _run_playbook(playbook, extra_vars, key,
                           tags=step_tags)
         except exception.InstanceDeployFailure as e:
-            LOG.error(_LE("Ansible failed cleaning step %(step)s "
-                          "on node %(node)s."), {
-                              'node': node.uuid, 'step': stepname})
+            LOG.error("Ansible failed cleaning step %(step)s "
+                      "on node %(node)s.",
+                      {'node': node.uuid, 'step': stepname})
             manager_utils.cleaning_error_handler(task, six.text_type(e))
         else:
-            LOG.info(_LI('Ansible completed cleaning step %(step)s '
-                         'on node %(node)s.'),
+            LOG.info('Ansible completed cleaning step %(step)s '
+                     'on node %(node)s.',
                      {'node': node.uuid, 'step': stepname})
 
     @METRICS.timer('AnsibleDeploy.prepare_cleaning')
@@ -648,7 +645,7 @@ class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
 
         LOG.debug('Waiting ramdisk on node %s for cleaning', node.uuid)
         _run_playbook(playbook, extra_vars, key, tags=['wait'])
-        LOG.info(_LI('Node %s is ready for cleaning'), node.uuid)
+        LOG.info('Node %s is ready for cleaning', node.uuid)
 
     @METRICS.timer('AnsibleDeploy.tear_down_cleaning')
     def tear_down_cleaning(self, task):
@@ -682,7 +679,7 @@ class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
     @METRICS.timer('AnsibleDeploy.reboot_to_instance')
     def reboot_to_instance(self, task):
         node = task.node
-        LOG.info(_LI('Ansible complete deploy on node %s'), node.uuid)
+        LOG.info('Ansible complete deploy on node %s', node.uuid)
 
         LOG.debug('Rebooting node %s to instance', node.uuid)
         manager_utils.node_set_boot_device(task, 'disk', persistent=True)
@@ -716,13 +713,12 @@ class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
                     _run_playbook(playbook, extra_vars, key)
                     _wait_until_powered_off(task)
                 except Exception as e:
-                    LOG.warning(
-                        _LW('Failed to soft power off node %(node_uuid)s '
-                            'in at least %(timeout)d seconds. '
-                            'Error: %(error)s'),
-                        {'node_uuid': node.uuid,
-                         'timeout': (wait * (attempts - 1)) / 1000,
-                         'error': e})
+                    LOG.warning('Failed to soft power off node %(node_uuid)s '
+                                'in at least %(timeout)d seconds. '
+                                'Error: %(error)s',
+                                {'node_uuid': node.uuid,
+                                 'timeout': (wait * (attempts - 1)) / 1000,
+                                 'error': e})
                     # NOTE(pas-ha) flush is a part of deploy playbook
                     # so if it finished successfully we can safely
                     # power off the node out-of-band
@@ -739,4 +735,4 @@ class AnsibleDeploy(agent_base.HeartbeatMixin, base.DeployInterface):
             agent_base.log_and_raise_deployment_error(task, msg)
 
         task.process_event('done')
-        LOG.info(_LI('Deployment to node %s done'), task.node.uuid)
+        LOG.info('Deployment to node %s done', task.node.uuid)

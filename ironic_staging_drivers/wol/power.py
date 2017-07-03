@@ -29,7 +29,6 @@ from oslo_log import log
 
 from ironic_staging_drivers.common import exception
 from ironic_staging_drivers.common.i18n import _
-from ironic_staging_drivers.common.i18n import _LI
 from ironic_staging_drivers.common import utils
 
 
@@ -154,9 +153,9 @@ class WakeOnLanPower(base.PowerInterface):
         if pstate == states.POWER_ON:
             _send_magic_packets(task, params['host'], params['port'])
         elif pstate == states.POWER_OFF:
-            LOG.info(_LI('Power off called for node %s. Wake-On-Lan does not '
-                         'support this operation. Manual intervention '
-                         'required to perform this action.'), node.uuid)
+            LOG.info('Power off called for node %s. Wake-On-Lan does not '
+                     'support this operation. Manual intervention '
+                     'required to perform this action.', node.uuid)
         else:
             raise ironic_exception.InvalidParameterValue(_(
                 "set_power_state called for Node %(node)s with invalid "
@@ -177,9 +176,9 @@ class WakeOnLanPower(base.PowerInterface):
             magic packets
 
         """
-        LOG.info(_LI('Reboot called for node %s. Wake-On-Lan does '
-                     'not fully support this operation. Trying to '
-                     'power on the node.'), task.node.uuid)
+        LOG.info('Reboot called for node %s. Wake-On-Lan does '
+                 'not fully support this operation. Trying to '
+                 'power on the node.', task.node.uuid)
         self.set_power_state(task, states.POWER_ON)
 
     def get_supported_power_states(self, task):
