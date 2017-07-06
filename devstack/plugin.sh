@@ -4,21 +4,18 @@
 IRONIC_STAGING_DRIVERS_DIR=$DEST/ironic-staging-drivers
 IRONIC_DRIVERS_EXCLUDED_DIRS='tests common'
 IRONIC_STAGING_DRIVER=${IRONIC_STAGING_DRIVER:-}
+# NOTE(pas-ha) skip iboot drivers as they require package not available on PyPI
+IRONIC_STAGING_LIST_EP_CMD="$PYTHON $IRONIC_STAGING_DRIVERS_DIR/tools/list-package-entrypoints.py ironic-staging-drivers -s iboot"
 
 function update_ironic_enabled_drivers {
-    local saveIFS
-    saveIFS=$IFS
-    IFS=","
-    while read driver; do
-        if [[ ! $IRONIC_ENABLED_DRIVERS =~ $(echo "\<$driver\>") ]]; then
-           if [[ -z "$IRONIC_ENABLED_DRIVERS" ]]; then
-               IRONIC_ENABLED_DRIVERS="$driver"
-           else
-               IRONIC_ENABLED_DRIVERS+=",$driver"
-           fi
-        fi
-    done < $IRONIC_STAGING_DRIVERS_DIR/devstack/enabled-drivers.txt
-    IFS=$saveIFS
+    # NOTE(pas-ha) not carying about possible duplicates any more,
+    # as it was fixed in ironic already
+    STAGING_DRIVERS=$($IRONIC_STAGING_LIST_EP_CMD -t ironic.drivers)
+    if [[ -z "$IRONIC_ENABLED_DRIVERS" ]]; then
+       IRONIC_ENABLED_DRIVERS="$STAGING_DRIVERS"
+    else
+       IRONIC_ENABLED_DRIVERS+=",$STAGING_DRIVERS"
+    fi
     # NOTE(vsaienko) if ironic-staging-drivers are called after ironic
     # setting IRONIC_ENABLED_DRIVERS will not take affect. Update ironic
     # configuration explicitly.
@@ -50,7 +47,7 @@ function install_drivers_dependencies {
 }
 
 function set_ironic_testing_driver {
-    if [[ "$IRONIC_STAGING_DRIVER" == "pxe_ipmitool_ansible" && \
+    if [[ "$IRONIC_STAGING_DRIVER" =~ "ansible" && \
           "$IRONIC_DEPLOY_DRIVER" == "agent_ipmitool" && \
           "$IRONIC_RAMDISK_TYPE" == "tinyipa" ]]; then
         echo_summary "Setting nodes to use ${IRONIC_STAGING_DRIVER} driver"
@@ -87,14 +84,23 @@ function set_ansible_deploy_driver {
         --public \
         -f value -c id)
 
-    # set nodes to use ansible_deploy driver with uploaded ramdisk
-    # using pxe_ipmitool_ansible instead of agent_ipmitool
     for node in $(openstack --os-cloud devstack baremetal node list -f value -c UUID); do
+        openstack --os-cloud devstack-admin baremetal node maintenance set $node
+        # set driver for pxe_ipmitool_ansible instead of agent_ipmitool
+        if [[ "$IRONIC_STAGING_DRIVER" =~ "staging" ]]; then
+            openstack --os-cloud devstack-admin baremetal node set $node \
+                 --driver ${IRONIC_STAGING_DRIVER} \
+                 --deploy-interface staging-ansible
+        else
+            openstack --os-cloud devstack-admin baremetal node set $node \
+                --driver ${IRONIC_STAGING_DRIVER}
+        fi
+        # set nodes to use ansible_deploy driver with uploaded ramdisk
         openstack --os-cloud devstack-admin baremetal node set $node \
-            --driver ${IRONIC_STAGING_DRIVER} \
             --driver-info deploy_ramdisk=$ansible_ramdisk_id \
             --driver-info ansible_deploy_username=tc \
             --driver-info ansible_deploy_key_file=$ansible_key_file
+        openstack --os-cloud devstack-admin baremetal node maintenance unset $node
     done
     # TODO(pas-ha) setup logging ansible callback plugin to log to specific file
     # for now all ansible logs are seen in ir-cond logs when run in debug logging mode
