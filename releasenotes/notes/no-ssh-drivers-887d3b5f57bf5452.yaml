@@ -1,0 +1,6 @@
+---
+upgrade:
+  - |
+    ``pxe_ssh_ansible`` driver is removed as SSH-based power and management
+    driver interfaces in ironic are unsupported since Newton release,
+    and are to be removed in the Pike release
