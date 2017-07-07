@@ -15,24 +15,10 @@ from ironic.drivers import ipmi
 from ironic.drivers.modules import fake
 from ironic.drivers.modules import ipmitool
 from ironic.drivers.modules import pxe
-from ironic.drivers.modules import ssh
 
 from ironic_staging_drivers.ansible import deploy as ansible_deploy
 from ironic_staging_drivers import libvirt
 from ironic_staging_drivers.libvirt import power as libvirt_power
-
-
-class AnsibleAndSSHDriver(base.BaseDriver):
-    """Ansible + SSH driver.
-
-    NOTE: This driver is meant only for testing environments.
-    """
-
-    def __init__(self):
-        self.power = ssh.SSHPower()
-        self.boot = pxe.PXEBoot()
-        self.deploy = ansible_deploy.AnsibleDeploy()
-        self.management = ssh.SSHManagement()
 
 
 class AnsibleAndIPMIToolDriver(base.BaseDriver):
