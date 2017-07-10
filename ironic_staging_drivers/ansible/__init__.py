@@ -15,15 +15,21 @@ from ironic.drivers import ipmi
 from ironic.drivers.modules import fake
 from ironic.drivers.modules import ipmitool
 from ironic.drivers.modules import pxe
+from oslo_log import log as logging
 
 from ironic_staging_drivers.ansible import deploy as ansible_deploy
 from ironic_staging_drivers.libvirt import power as libvirt_power
+
+LOG = logging.getLogger(__name__)
 
 
 class AnsibleAndIPMIToolDriver(base.BaseDriver):
     """Ansible + Ipmitool driver."""
 
     def __init__(self):
+        LOG.warning("This driver is deprecated and will be removed "
+                    "in the Queens release. "
+                    "Use 'staging-ansible-ipmi' hardware type instead.")
         self.power = ipmitool.IPMIPower()
         self.boot = pxe.PXEBoot()
         self.deploy = ansible_deploy.AnsibleDeploy()
@@ -48,6 +54,9 @@ class AnsibleAndLibvirtDriver(base.BaseDriver):
     """
 
     def __init__(self):
+        LOG.warning("This driver is deprecated and will be removed "
+                    "in the Queens release. "
+                    "Use 'staging-ansible-libvirt' hardware type instead.")
         self.power = libvirt_power.LibvirtPower()
         self.boot = pxe.PXEBoot()
         self.deploy = ansible_deploy.AnsibleDeploy()
