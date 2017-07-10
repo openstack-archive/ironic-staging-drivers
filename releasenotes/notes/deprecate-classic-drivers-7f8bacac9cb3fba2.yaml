@@ -1,0 +1,20 @@
+---
+deprecations:
+  - |
+    Classic ironic drivers defined by ``ironic-staging-drivers`` package
+    are deprecated and will be removed in the Queens release.
+    Operators are suggested to use new, dynamic ironic drivers (hardware types)
+    instead::
+
+    - pxe_amt_iscsi -> staging-amt
+    - pxe_amt_agent -> staging-amt
+    - pxe_ipmitool_ansible -> staging-ansible-ipmi
+    - pxe_libvirt_ansible -> staging-ansible-libvirt
+    - pxe_iboot_agent -> staging-iboot
+    - pxe_iboot_iscsi -> staging-iboot
+    - agent_ipmitool_nm -> staging-nm
+    - pxe_libvirt_agent -> staging-libvirt
+    - pxe_libvirt_iscsi -> staging-libvirt
+    - pxe_wol_iscsi -> staging-wol
+    - pxe_wol_agent -> staging-wol
+

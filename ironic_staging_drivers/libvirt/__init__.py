@@ -16,8 +16,11 @@ from ironic.drivers.modules import agent
 from ironic.drivers.modules import fake
 from ironic.drivers.modules import iscsi_deploy
 from ironic.drivers.modules import pxe
+from oslo_log import log as logging
 
 from ironic_staging_drivers.libvirt import power
+
+LOG = logging.getLogger(__name__)
 
 
 class FakeLibvirtFakeDriver(base.BaseDriver):
@@ -43,6 +46,9 @@ class PXELibvirtAgentDriver(base.BaseDriver):
     """
 
     def __init__(self):
+        LOG.warning("This driver is deprecated and will be removed "
+                    "in the Queens release. "
+                    "Use 'staging-libvirt' hardware type instead.")
         self.power = power.LibvirtPower()
         self.boot = pxe.PXEBoot()
         self.deploy = agent.AgentDeploy()
@@ -62,6 +68,9 @@ class PXELibvirtISCSIDriver(base.BaseDriver):
     """
 
     def __init__(self):
+        LOG.warning("This driver is deprecated and will be removed "
+                    "in the Queens release. "
+                    "Use 'staging-libvirt' hardware type instead.")
         self.power = power.LibvirtPower()
         self.boot = pxe.PXEBoot()
         self.deploy = iscsi_deploy.ISCSIDeploy()
