@@ -27,23 +27,11 @@ function update_ironic_enabled_drivers {
     # NOTE(vsaienko) if ironic-staging-drivers are called after ironic
     # setting IRONIC_ENABLED_* will not take affect. Update ironic
     # configuration explicitly for each option.
-    local staging_drivers
     local staging_hw_types
     local staging_power_ifs
     local staging_mgmt_ifs
     local staging_vendor_ifs
     local staging_deploy_ifs
-
-    # TODO(pas-ha) remove setting classic drivers after ansible driver can
-    #              be set up via hardware type
-    # classic drivers
-    staging_drivers=$($IRONIC_STAGING_LIST_EP_CMD -t ironic.drivers)
-    if [[ -z "$IRONIC_ENABLED_DRIVERS" ]]; then
-        IRONIC_ENABLED_DRIVERS="$staging_drivers"
-    else
-        IRONIC_ENABLED_DRIVERS+=",$staging_drivers"
-    fi
-    iniset $IRONIC_CONF_FILE DEFAULT enabled_drivers "$IRONIC_ENABLED_DRIVERS"
 
     # hardware types
     staging_hw_types=$($IRONIC_STAGING_LIST_EP_CMD -t ironic.hardware.types)
@@ -121,7 +109,8 @@ function install_drivers_dependencies {
 }
 
 function set_ironic_testing_driver {
-    if [[ "$IRONIC_STAGING_DRIVER" == "pxe_ipmitool_ansible" && \
+    if [[ "$IRONIC_STAGING_DRIVER" =~ "ansible" && \
+          "$IRONIC_STAGING_DRIVER" =~ "ipmi" && \
           "$IRONIC_DEPLOY_DRIVER" == "agent_ipmitool" && \
           "$IRONIC_RAMDISK_TYPE" == "tinyipa" ]]; then
         echo_summary "Setting nodes to use ${IRONIC_STAGING_DRIVER} driver"
@@ -158,14 +147,17 @@ function set_ansible_deploy_driver {
         --public \
         -f value -c id)
 
-    # set nodes to use ansible_deploy driver with uploaded ramdisk
-    # using pxe_ipmitool_ansible instead of agent_ipmitool
     for node in $(openstack --os-cloud devstack baremetal node list -f value -c UUID); do
-        openstack --os-cloud devstack-admin baremetal node set $node \
-            --driver ${IRONIC_STAGING_DRIVER} \
-            --driver-info deploy_ramdisk=$ansible_ramdisk_id \
-            --driver-info ansible_deploy_username=tc \
-            --driver-info ansible_deploy_key_file=$ansible_key_file
+        openstack --os-cloud devstack-admin baremetal node maintenance set $node
+        # switch driver to ansible-enabled hardware type
+        openstack --os-cloud devstack-admin --os-baremetal-api-version 1.30 baremetal node set $node \
+             --driver ${IRONIC_STAGING_DRIVER} \
+             --deploy-interface staging-ansible \
+             --driver-info deploy_ramdisk=$ansible_ramdisk_id \
+             --driver-info ansible_deploy_username=tc \
+             --driver-info ansible_deploy_key_file=$ansible_key_file
+        # set nodes to use the uploaded ramdisk and appropriate SSH creds
+        openstack --os-cloud devstack-admin baremetal node maintenance unset $node
     done
     # TODO(pas-ha) setup logging ansible callback plugin to log to specific file
     # for now all ansible logs are seen in ir-cond logs when run in debug logging mode
