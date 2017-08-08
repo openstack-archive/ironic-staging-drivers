@@ -46,13 +46,15 @@ function install_drivers_dependencies {
         if [[ -d $path && ! "$IRONIC_DRIVERS_EXCLUDED_DIRS" =~ "$driver" ]]; then
             p_deps=${IRONIC_STAGING_DRIVERS_DIR}/ironic_staging_drivers/${driver}/python-requirements.txt
             o_deps=${IRONIC_STAGING_DRIVERS_DIR}/ironic_staging_drivers/${driver}/other-requirements.sh
-            if [[ -f "$p_deps" ]]; then
-               echo_summary "Installing $driver python dependencies"
-               pip_install -r $p_deps
-            fi
+            # NOTE(pas-ha) install 'other' dependencies first just in case
+            # they contain something required to build Python dependencies
             if [[ -f "$o_deps" ]]; then
                echo_summary "Installing $driver other dependencies"
                source $o_deps
+            fi
+            if [[ -f "$p_deps" ]]; then
+               echo_summary "Installing $driver python dependencies"
+               pip_install -r $p_deps
             fi
         fi
     done
