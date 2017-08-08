@@ -8,7 +8,6 @@ IRONIC_STAGING_DRIVER=${IRONIC_STAGING_DRIVER:-}
 IRONIC_STAGING_DRIVERS_SKIPS=${IRONIC_STAGING_DRIVERS_SKIPS:-"iboot"}
 IRONIC_STAGING_DRIVERS_FILTERS=${IRONIC_STAGING_DRIVERS_FILTERS:-}
 IRONIC_STAGING_LIST_EP_CMD="$PYTHON $IRONIC_STAGING_DRIVERS_DIR/tools/list-package-entrypoints.py ironic-staging-drivers"
-
 if [[ -n "$IRONIC_STAGING_DRIVERS_SKIPS" ]]; then
     IRONIC_STAGING_LIST_EP_CMD+=" -s $IRONIC_STAGING_DRIVERS_SKIPS"
 fi
@@ -16,22 +15,51 @@ if [[ -n "$IRONIC_STAGING_DRIVERS_FILTERS" ]]; then
     IRONIC_STAGING_LIST_EP_CMD+=" -f $IRONIC_STAGING_DRIVERS_FILTERS"
 fi
 
+IRONIC_STAGING_INTERFACE_TYPES="boot deploy power management console inspect raid vendor storage network"
+# these are copied from ironic's code as ironic's devstack plugin does not
+# have defaults for them
+# TODO(pas-ha) propose using explicit defaults to ironic's devstack plugin
+IRONIC_STAGING_DEFAULT_POWER_INTERFACES="ipmitool"
+IRONIC_STAGING_DEFAULT_BOOT_INTERFACES="pxe"
+IRONIC_STAGING_DEFAULT_MANAGEMENT_INTERFACES="ipmitool"
+IRONIC_STAGING_DEFAULT_DEPLOY_INTERFACES="iscsi,direct"
+IRONIC_STAGING_DEFAULT_CONSOLE_INTERFACES="no-console"
+IRONIC_STAGING_DEFAULT_INSPECT_INTERFACES="no-inspect"
+IRONIC_STAGING_DEFAULT_RAID_INTERFACES="agent,no-raid"
+IRONIC_STAGING_DEFAULT_VENDOR_INTERFACES="ipmitool,no-vendor"
+IRONIC_STAGING_DEFAULT_STORAGE_INTERFACES="cider,noop"
+IRONIC_STAGING_DEFAULT_NETWORK_INTERFACES="flat,noop"
+
+function setup_ironic_enabled_interfaces_for {
+
+    local iface=$1
+    local iface_var=$(echo $iface | tr '[:lower:]' '[:upper:]')
+    local ironic_iface_var="IRONIC_ENABLED_${iface_var}_INTERFACES"
+    local implicit_defaults_var="IRONIC_STAGING_DEFAULT_${iface_var}_INTERFACES"
+    local enabled_ifs
+    local staging_ifs=$($IRONIC_STAGING_LIST_EP_CMD -t ironic.hardware.interfaces.${iface})
+
+    if [[ -n ${staging_ifs} ]]; then
+        if [[ -z "${!ironic_iface_var}" ]]; then
+            enabled_ifs="${!implicit_defaults_var}"
+        else
+            enabled_ifs="${!ironic_iface_var}"
+        fi
+        # NOTE(pas-ha) need fake management interface enabled for staging-wol hw type
+        if [[ $iface == 'management' ]]; then
+            enabled_ifs+=",fake"
+        fi
+        iniset $IRONIC_CONF_FILE DEFAULT "enabled_${iface}_interfaces" "$enabled_ifs,$staging_ifs"
+    fi
+}
 
 function update_ironic_enabled_drivers {
-    # NOTE(pas-ha) ironic-staging-drivers currently export only below types
-    #              of interfaces.
-    # ADD NEW ONES IF ADDED TO THE CODE TO TEST THAT THEY ARE STARTING!
-    # TODO(pas-ha) refactor and try to set any type of interfaces if found
     # NOTE(pas-ha) not carying about possible duplicates any more,
     #              as it was fixed in ironic already
     # NOTE(vsaienko) if ironic-staging-drivers are called after ironic
     # setting IRONIC_ENABLED_* will not take affect. Update ironic
     # configuration explicitly for each option.
     local staging_hw_types
-    local staging_power_ifs
-    local staging_mgmt_ifs
-    local staging_vendor_ifs
-    local staging_deploy_ifs
 
     # hardware types
     staging_hw_types=$($IRONIC_STAGING_LIST_EP_CMD -t ironic.hardware.types)
@@ -42,46 +70,11 @@ function update_ironic_enabled_drivers {
     fi
     iniset $IRONIC_CONF_FILE DEFAULT enabled_hardware_types "$IRONIC_ENABLED_HARDWARE_TYPES"
 
-    # power interfaces
-    staging_power_ifs=$($IRONIC_STAGING_LIST_EP_CMD -t ironic.hardware.interfaces.power)
-    if [[ -z "$IRONIC_ENABLED_POWER_INTERFACES" ]]; then
-        # NOTE(pas-ha) implict default is ipmitool
-        IRONIC_ENABLED_POWER_INTERFACES="ipmitool,$staging_power_ifs"
-    else
-        IRONIC_ENABLED_POWER_INTERFACES+=",$staging_power_ifs"
-    fi
-    iniset $IRONIC_CONF_FILE DEFAULT enabled_power_interfaces "$IRONIC_ENABLED_POWER_INTERFACES"
-
-    # management interfaces
-    # NOTE(pas-ha) we need explicitly add 'fake' as it is required by WoL driver
-    staging_mgmt_ifs="fake,$($IRONIC_STAGING_LIST_EP_CMD -t ironic.hardware.interfaces.management)"
-    if [[ -z "$IRONIC_ENABLED_MANAGEMENT_INTERFACES" ]]; then
-        # NOTE(pas-ha) implict default is ipmitool
-        IRONIC_ENABLED_MANAGEMENT_INTERFACES="ipmitool,$staging_mgmt_ifs"
-    else
-        IRONIC_ENABLED_MANAGEMENT_INTERFACES+=",$staging_mgmt_ifs"
-    fi
-    iniset $IRONIC_CONF_FILE DEFAULT enabled_management_interfaces "$IRONIC_ENABLED_MANAGEMENT_INTERFACES"
-
-    # vendor interfaces
-    staging_vendor_ifs=$($IRONIC_STAGING_LIST_EP_CMD -t ironic.hardware.interfaces.vendor)
-    if [[ -z "$IRONIC_ENABLED_VENDOR_INTERFACES" ]]; then
-        # NOTE(pas-ha) implict default is ipmitool,no-vendor
-        IRONIC_ENABLED_VENDOR_INTERFACES="ipmitool,no-vendor,$staging_vendor_ifs"
-    else
-        IRONIC_ENABLED_VENDOR_INTERFACES+=",$staging_vendor_ifs"
-    fi
-    iniset $IRONIC_CONF_FILE DEFAULT enabled_vendor_interfaces "$IRONIC_ENABLED_VENDOR_INTERFACES"
-
-    # deploy interfaces
-    staging_deploy_ifs=$($IRONIC_STAGING_LIST_EP_CMD -t ironic.hardware.interfaces.deploy)
-    if [[ -z "$IRONIC_ENABLED_DEPLOY_INTERFACES" ]]; then
-        # NOTE(pas-ha) implict default is iscsi,direct
-        IRONIC_ENABLED_DEPLOY_INTERFACES="iscsi,direct,$staging_deploy_ifs"
-    else
-        IRONIC_ENABLED_DEPLOY_INTERFACES+=",$staging_deploy_ifs"
-    fi
-    iniset $IRONIC_CONF_FILE DEFAULT enabled_deploy_interfaces "$IRONIC_ENABLED_DEPLOY_INTERFACES"
+    # NOTE(pas-ha) find and enable any type of ironic hardware interface
+    # registered by ironic-staging-drivers package (minding skips and filters)
+    for i in $IRONIC_STAGING_INTERFACE_TYPES; do
+        setup_ironic_enabled_interfaces_for $i
+    done
 }
 
 function install_ironic_staging_drivers {
