@@ -1,0 +1,20 @@
+---
+deprecations:
+  - |
+    Classic ironic drivers defined by ``ironic-staging-drivers`` package
+    are deprecated and will be removed in the Rocky release.
+    Operators are suggested to use new, dynamic ironic drivers (hardware types)
+    instead::
+
+    - ``pxe_amt_iscsi`` -> ``staging-amt`` hw type with ``staging-amt`` deploy interface
+    - ``pxe_amt_agent`` -> ``staging-amt`` hw type with ``direct`` deploy interface
+    - ``pxe_ipmitool_ansible`` -> ``staging-ansible-ipmi`` hw type with ``staging-ansible`` deploy interface
+    - ``pxe_libvirt_ansible`` -> ``staging-libvirt`` hw type with ``staging-ansible`` deploy interface
+    - ``pxe_iboot_agent`` -> ``staging-iboot`` hw type with ``direct`` deploy interface
+    - ``pxe_iboot_iscsi`` -> ``staging-iboot`` hw type with ``iscsi`` deploy interface
+    - ``agent_ipmitool_nm`` -> ``staging-nm`` hw type with ``staging-nm`` vendor interface
+    - ``pxe_libvirt_agent`` -> ``staging-libvirt`` hw type with ``direct`` deploy interface
+    - ``pxe_libvirt_iscsi`` -> ``staging-libvirt`` hw type with ``iscsi`` deploy interface
+    - ``pxe_wol_iscsi`` -> ``staging-wol`` hw type with ``iscsi`` deploy interface
+    - ``pxe_wol_agent`` -> ``staging-wol`` hw type with ``direct`` deploy interface
+
