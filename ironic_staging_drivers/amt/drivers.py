@@ -19,12 +19,16 @@ from ironic.drivers import generic
 from ironic.drivers.modules import agent
 from ironic.drivers.modules import fake
 from ironic.drivers.modules import pxe
+from oslo_log import log as logging
 from oslo_utils import importutils
+
 
 from ironic_staging_drivers.amt import deploy as amt_deploy
 from ironic_staging_drivers.amt import management as amt_management
 from ironic_staging_drivers.amt import power as amt_power
 from ironic_staging_drivers.common.i18n import _
+
+LOG = logging.getLogger(__name__)
 
 
 # NOTE(lintan) There is a strange behavior for tox if put below classes
@@ -50,7 +54,11 @@ class PXEAndAMTISCSIDriver(base.BaseDriver):
     deployment. Implementations are in those respective classes; this
     class is merely the glue between them.
     """
+
     def __init__(self):
+        LOG.warning("This driver is deprecated and will be removed "
+                    "in the Queens release. "
+                    "Use 'staging-amt' hardware type instead.")
         if not importutils.try_import('pywsman'):
             raise ironic_exception.DriverLoadError(
                 driver=self.__class__.__name__,
@@ -71,7 +79,11 @@ class PXEAndAMTAgentDriver(base.BaseDriver):
     deployment. Implementations are in those respective classes; this
     class is merely the glue between them.
     """
+
     def __init__(self):
+        LOG.warning("This driver is deprecated and will be removed "
+                    "in the Queens release. "
+                    "Use 'staging-amt' hardware type instead.")
         if not importutils.try_import('pywsman'):
             raise ironic_exception.DriverLoadError(
                 driver=self.__class__.__name__,
