@@ -19,8 +19,11 @@ from ironic.drivers.modules import agent
 from ironic.drivers.modules import fake
 from ironic.drivers.modules import iscsi_deploy
 from ironic.drivers.modules import pxe
+from oslo_log import log as logging
 
 from ironic_staging_drivers.wol import power as wol_power
+
+LOG = logging.getLogger(__name__)
 
 
 class FakeWakeOnLanFakeDriver(base.BaseDriver):
@@ -44,6 +47,9 @@ class PXEWakeOnLanISCSIDriver(base.BaseDriver):
 
     """
     def __init__(self):
+        LOG.warning("This driver is deprecated and will be removed "
+                    "in the Rocky release. "
+                    "Use 'staging-wol' hardware type instead.")
         self.boot = pxe.PXEBoot()
         self.power = wol_power.WakeOnLanPower()
         self.deploy = iscsi_deploy.ISCSIDeploy()
@@ -61,6 +67,9 @@ class PXEWakeOnLanAgentDriver(base.BaseDriver):
 
     """
     def __init__(self):
+        LOG.warning("This driver is deprecated and will be removed "
+                    "in the Rocky release. "
+                    "Use 'staging-wol' hardware type instead.")
         self.boot = pxe.PXEBoot()
         self.power = wol_power.WakeOnLanPower()
         self.deploy = agent.AgentDeploy()
