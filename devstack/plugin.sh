@@ -103,11 +103,14 @@ function install_drivers_dependencies {
 }
 
 function set_ironic_testing_driver {
-    if [[ "$IRONIC_STAGING_DRIVER" == "pxe_ipmitool_ansible" && \
+    if [[ "$IRONIC_STAGING_DRIVER" =~ "ansible" && \
+          "$IRONIC_STAGING_DRIVER" =~ "ipmi" && \
           "$IRONIC_DEPLOY_DRIVER" == "agent_ipmitool" && \
           "$IRONIC_RAMDISK_TYPE" == "tinyipa" ]]; then
-        echo_summary "Setting nodes to use ${IRONIC_STAGING_DRIVER} driver"
+        echo_summary "Setting nodes to use 'staging-ansible-ipmi' hardware type with 'staging-ansible' deploy interface"
         set_ansible_deploy_driver
+    else
+        die $LINENO "Failed to configure ironic to use ${IRONIC_STAGING_DRIVER} driver/hw type: not supported by devstack plugin or other pre-conditions not met"
     fi
 }
 
@@ -140,14 +143,20 @@ function set_ansible_deploy_driver {
         --public \
         -f value -c id)
 
-    # set nodes to use ansible_deploy driver with uploaded ramdisk
-    # using pxe_ipmitool_ansible instead of agent_ipmitool
     for node in $(openstack --os-cloud devstack baremetal node list -f value -c UUID); do
-        openstack --os-cloud devstack-admin baremetal node set $node \
-            --driver ${IRONIC_STAGING_DRIVER} \
-            --driver-info deploy_ramdisk=$ansible_ramdisk_id \
-            --driver-info ansible_deploy_username=tc \
-            --driver-info ansible_deploy_key_file=$ansible_key_file
+        openstack --os-cloud devstack-admin baremetal node maintenance set $node
+        # switch driver to ansible-enabled hardware type, use minimal API version that supports setting driver interfaces,
+        # set nodes to use the uploaded ramdisk and appropriate SSH creds.
+        # TODO(pas-ha) remove API version when OSC defaults to 'latest'
+        # TODO(pas-ha) change the job definition in project-config to set the HW type
+        # when stable/pike is no longer supported
+        openstack --os-cloud devstack-admin --os-baremetal-api-version 1.31 baremetal node set $node \
+             --driver staging-ansible-ipmi \
+             --deploy-interface staging-ansible \
+             --driver-info deploy_ramdisk=$ansible_ramdisk_id \
+             --driver-info ansible_deploy_username=tc \
+             --driver-info ansible_deploy_key_file=$ansible_key_file
+        openstack --os-cloud devstack-admin baremetal node maintenance unset $node
     done
 
     # set logging for ansible-deploy
@@ -173,7 +182,7 @@ if is_service_enabled ir-api ir-cond; then
         echo_summary "Configuring Ironic-staging-drivers"
         update_ironic_enabled_drivers
     elif [[ "$1" == "stack" && "$2" == "extra" ]]; then
-        if [ -n $IRONIC_STAGING_DRIVER ]; then
+        if [[ -n ${IRONIC_STAGING_DRIVER} ]]; then
             set_ironic_testing_driver
         fi
     fi
