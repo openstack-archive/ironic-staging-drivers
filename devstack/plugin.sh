@@ -46,19 +46,7 @@ function update_ironic_enabled_drivers {
     # NOTE(vsaienko) if ironic-staging-drivers are called after ironic
     # setting IRONIC_ENABLED_* will not take affect. Update ironic
     # configuration explicitly for each option.
-    local staging_drivers
     local staging_hw_types
-
-    # TODO(pas-ha) remove setting classic drivers after ansible driver can
-    #              be set up via hardware type
-    # classic drivers
-    staging_drivers=$($IRONIC_STAGING_LIST_EP_CMD -t ironic.drivers)
-    if [[ -z "$IRONIC_ENABLED_DRIVERS" ]]; then
-        IRONIC_ENABLED_DRIVERS="$staging_drivers"
-    else
-        IRONIC_ENABLED_DRIVERS+=",$staging_drivers"
-    fi
-    iniset $IRONIC_CONF_FILE DEFAULT enabled_drivers "$IRONIC_ENABLED_DRIVERS"
 
     # hardware types
     staging_hw_types=$($IRONIC_STAGING_LIST_EP_CMD -t ironic.hardware.types)
