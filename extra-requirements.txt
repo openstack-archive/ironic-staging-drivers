@@ -1,1 +1,1 @@
-git+git://git.openstack.org/openstack/ironic#egg=ironic
+git+git://git.openstack.org/openstack/ironic@stable/pike#egg=ironic
