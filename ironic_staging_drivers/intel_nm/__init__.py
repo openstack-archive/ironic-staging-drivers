@@ -18,8 +18,11 @@ from ironic.drivers.modules import inspector
 from ironic.drivers.modules import ipmitool
 from ironic.drivers.modules import pxe
 from ironic.drivers import utils
+from oslo_log import log as logging
 
 from ironic_staging_drivers.intel_nm import nm_vendor
+
+LOG = logging.getLogger(__name__)
 
 
 class FakeIntelNMDriver(base.BaseDriver):
@@ -34,6 +37,9 @@ class FakeIntelNMDriver(base.BaseDriver):
 class AgentAndIPMIToolIntelNMDriver(base.BaseDriver):
     """Agent + IPMITool driver with Intel NM policies."""
     def __init__(self):
+        LOG.warning("This driver is deprecated and will be removed "
+                    "in the Rocky release. "
+                    "Use 'staging-nm' hardware type instead.")
         self.power = ipmitool.IPMIPower()
         self.boot = pxe.PXEBoot()
         self.deploy = agent.AgentDeploy()
