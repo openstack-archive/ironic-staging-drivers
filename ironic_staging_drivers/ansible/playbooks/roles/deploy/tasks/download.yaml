@@ -8,5 +8,6 @@
     url: "{{ ironic.image.url }}"
     dest: /tmp/{{ inventory_hostname }}.img
     checksum: "{{ ironic.image.checksum|default(omit) }}"
+    validate_certs: no
   async: 600
   poll: 15
