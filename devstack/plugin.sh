@@ -14,6 +14,7 @@ fi
 if [[ -n "$IRONIC_STAGING_DRIVERS_FILTERS" ]]; then
     IRONIC_STAGING_LIST_EP_CMD+=" -f $IRONIC_STAGING_DRIVERS_FILTERS"
 fi
+IRONIC_STAGING_ANSIBLE_VERSION_SPEC=${IRONIC_STAGING_ANSIBLE_VERSION_SPEC:-}
 
 function setup_ironic_enabled_interfaces_for {
 
@@ -106,6 +107,13 @@ function install_drivers_dependencies {
             fi
         fi
     done
+    if [ -n ${IRONIC_STAGING_ANSIBLE_VERSION_SPEC} ]; then
+        # NOTE(pas-ha) re-install another Ansible version
+        # useful for bitrot-like jobs to test with previous releases
+        # or (if we ever cap Ansible version) with new releases
+        echo_summary "Overriding Ansible version to ${IRONIC_STAGING_ANSIBLE_VERSION_SPEC}"
+        pip_install "ansible${IRONIC_STAGING_ANSIBLE_VERSION_SPEC}"
+    fi
 }
 
 function set_ironic_testing_driver {
