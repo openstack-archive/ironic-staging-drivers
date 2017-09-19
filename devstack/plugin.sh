@@ -173,6 +173,11 @@ function set_ansible_deploy_driver {
             --driver-info deploy_ramdisk=$ansible_ramdisk_id \
             --driver-info ansible_deploy_username=tc \
             --driver-info ansible_deploy_key_file=$ansible_key_file
+        # NOTE(pas-ha) set root device hint for virtualized HW only,
+        # vendor corresponds to 'virtio' disks ironic creates the virtual nodes with
+        if [[ $IRONIC_IS_HARDWARE == 'False' ]]; then
+            openstack --os-cloud devstack-admin baremetal node set $node --property root_device='{"vendor": "0x1af4"}'
+        fi
     done
 }
 
