@@ -2,8 +2,11 @@
   when: ironic.root_device_hints is defined
 
 - set_fact:
-    ironic_root_device: /dev/{{ ansible_devices.keys()[0] }}
-  when: ironic_root_device is undefined
+    ironic_root_device: /dev/{{ item.key }}
+  with_dict: "{{ ansible_devices }}"
+  when:
+    - ironic_root_device is undefined
+    - item.value.host
 
 - set_fact:
     ironic_image_target: "{{ ironic_root_device }}"

@@ -85,6 +85,13 @@ class CallbackModule(object):
         setup_log()
         self.log = logging.getLogger(__name__)
         self.node = None
+        self.opts = {}
+
+    # NOTE(pas-ha) this method is required for Ansible>=2.4
+    # TODO(pas-ha) rewrite to support defining callback plugin options
+    # in ansible.cfg after we require Ansible >=2.4
+    def set_options(self, options):
+        self.opts = options
 
     def runner_msg_dict(self, result):
         self.node = result._host.get_name()
