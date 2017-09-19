@@ -24,13 +24,14 @@ DEFAULT_CHUNK_SIZE = 1024 * 1024  # 1MB
 
 class StreamingDownloader(object):
 
-    def __init__(self, url, chunksize, hash_algo=None):
+    def __init__(self, url, chunksize, hash_algo=None, verify=True,
+                 certs=None):
         if hash_algo is not None:
             self.hasher = hashlib.new(hash_algo)
         else:
             self.hasher = None
         self.chunksize = chunksize
-        resp = requests.get(url, stream=True)
+        resp = requests.get(url, stream=True, verify=verify, certs=certs)
         if resp.status_code != 200:
             raise Exception('Invalid response code: %s' % resp.status_code)
 
@@ -47,8 +48,9 @@ class StreamingDownloader(object):
             return self.hasher.hexdigest()
 
 
-def stream_to_dest(url, dest, chunksize, hash_algo):
-    downloader = StreamingDownloader(url, chunksize, hash_algo)
+def stream_to_dest(url, dest, chunksize, hash_algo, verify=True, certs=None):
+    downloader = StreamingDownloader(url, chunksize, hash_algo,
+                                     verify=verify, certs=certs)
 
     with open(dest, 'wb+') as f:
         for chunk in downloader:
@@ -64,13 +66,25 @@ def main():
             dest=dict(required=True, type='str'),
             checksum=dict(required=False, type='str', default=''),
             chunksize=dict(required=False, type='int',
-                           default=DEFAULT_CHUNK_SIZE)
+                           default=DEFAULT_CHUNK_SIZE),
+            validate_certs=dict(required=False, type='bool', default=True),
+            client_cert=dict(required=False, type='str', default=''),
+            client_key=dict(required=False, type='str', default='')
+
         ))
 
     url = module.params['url']
     dest = module.params['dest']
     checksum = module.params['checksum']
     chunksize = module.params['chunksize']
+    validate = module.params['validate_certs']
+    client_cert = module.params['client_cert']
+    client_key = module.params['client_key']
+    if client_cert:
+        certs = (client_cert, client_key) if client_key else client_cert
+    else:
+        certs = None
+
     if checksum == '':
         hash_algo, checksum = None, None
     else:
@@ -88,7 +102,7 @@ def main():
 
     try:
         actual_checksum = stream_to_dest(
-            url, dest, chunksize, hash_algo)
+            url, dest, chunksize, hash_algo, verify=validate, certs=certs)
     except Exception as e:
         module.fail_json(msg=str(e))
     else:

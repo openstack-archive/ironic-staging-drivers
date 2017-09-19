@@ -331,6 +331,7 @@ class TestAnsibleMethods(db_base.DbTestCase):
                        return_value=2000)
     def test__prepare_variables(self, mem_req_mock):
         expected = {"image": {"url": "http://image",
+                              "validate_certs": "yes",
                               "source": "fake-image",
                               "mem_req": 2000,
                               "disk_format": "qcow2",
@@ -347,6 +348,7 @@ class TestAnsibleMethods(db_base.DbTestCase):
         self.node.properties = props
         self.node.save()
         expected = {"image": {"url": "http://image",
+                              "validate_certs": "yes",
                               "source": "fake-image",
                               "mem_req": 2000,
                               "disk_format": "qcow2",
@@ -359,11 +361,13 @@ class TestAnsibleMethods(db_base.DbTestCase):
     @mock.patch.object(ansible_deploy, '_calculate_memory_req', autospec=True,
                        return_value=2000)
     def test__prepare_variables_noglance(self, mem_req_mock):
+        self.config(image_store_insecure=True, group='ansible')
         i_info = self.node.instance_info
         i_info['image_checksum'] = 'sha256:checksum'
         self.node.instance_info = i_info
         self.node.save()
         expected = {"image": {"url": "http://image",
+                              "validate_certs": "no",
                               "source": "fake-image",
                               "mem_req": 2000,
                               "disk_format": "qcow2",
@@ -380,6 +384,7 @@ class TestAnsibleMethods(db_base.DbTestCase):
         self.node.instance_info = i_info
         self.node.save()
         expected = {"image": {"url": "http://image",
+                              "validate_certs": "yes",
                               "source": "fake-image",
                               "mem_req": 2000,
                               "disk_format": "qcow2",
@@ -399,6 +404,7 @@ class TestAnsibleMethods(db_base.DbTestCase):
         self.node.save()
         self.config(tempdir='/path/to/tmpfiles')
         expected = {"image": {"url": "http://image",
+                              "validate_certs": "yes",
                               "source": "fake-image",
                               "mem_req": 2000,
                               "disk_format": "qcow2",

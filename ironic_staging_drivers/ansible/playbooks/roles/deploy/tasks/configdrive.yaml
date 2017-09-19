@@ -2,6 +2,7 @@
   get_url:
     url: "{{ ironic.configdrive.location }}"
     dest: /tmp/{{ inventory_hostname }}.gz.base64
+    verify_certs: "{{ ironic.image.validate_certs|default(omit) }}"
   async: 600
   poll: 15
   when: "{{ ironic.configdrive.type|default('') == 'url' }}"
