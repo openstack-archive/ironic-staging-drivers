@@ -12,3 +12,5 @@
   become: yes
   command: sgdisk -Z /dev/{{ item.key }}
   with_dict: "{{ ansible_devices }}"
+  when:
+    - item.value.host
