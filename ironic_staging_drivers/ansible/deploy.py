@@ -95,6 +95,36 @@ ansible_opts = [
                        'cleaning. Disable it when using custom ramdisk '
                        'without callback script. '
                        'When callback is disabled, Neutron is mandatory.')),
+    cfg.BoolOpt('image_store_insecure',
+                default=False,
+                help=_('Skip verifying SSL connections to the image store '
+                       'when downloading the image. '
+                       'Mostly suitable for testing environments that use '
+                       'self-signed certificates.')),
+    cfg.StrOpt('image_store_cafile',
+               default=None,
+               help=_('Specific CA bundle to use for validating '
+                      'SSL connections to the image store. '
+                      'If not specified, CA available in the ramdisk '
+                      'will be used. '
+                      'Is not used by default playbooks included with '
+                      'the driver. '
+                      'Mostly suitable for testing environments that use '
+                      'self-signed certificates.')),
+    cfg.StrOpt('image_store_certfile',
+               default=None,
+               help=_('Client cert to use for SSL connections '
+                      'to image store. '
+                      'Is not used by default playbooks included with '
+                      'the driver. '
+                      'Can be used in custom playbooks and Ansible>=2.4.')),
+    cfg.StrOpt('image_store_keyfile',
+               default=None,
+               help=_('Client key to use for SSL connections '
+                      'to image store. '
+                      'Is not used by default playbooks included with '
+                      'the driver. '
+                      'Can be used in custom playbooks and Ansible>=2.4.')),
 ]
 
 CONF.register_opts(ansible_opts, group='ansible')
@@ -331,6 +361,16 @@ def _parse_root_device_hints(node):
     return root_device_hints
 
 
+def _add_ssl_image_options(image):
+    image['validate_certs'] = ('no' if CONF.ansible.image_store_insecure
+                               else 'yes')
+    if CONF.ansible.image_store_cafile:
+        image['cafile'] = CONF.ansible.image_store_cafile
+    if CONF.ansible.image_store_certfile and CONF.ansible.image_store_keyfile:
+        image['client_cert'] = CONF.ansible.image_store_certfile
+        image['client_key'] = CONF.ansible.image_store_keyfile
+
+
 def _prepare_variables(task):
     node = task.node
     i_info = node.instance_info
@@ -349,6 +389,7 @@ def _prepare_variables(task):
         # where API reports checksum as MD5 always.
         if ':' not in checksum:
             image['checksum'] = 'md5:%s' % checksum
+    _add_ssl_image_options(image)
     variables = {'image': image}
     configdrive = i_info.get('configdrive')
     if configdrive:
