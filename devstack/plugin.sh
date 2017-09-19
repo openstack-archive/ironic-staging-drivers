@@ -108,6 +108,25 @@ function install_drivers_dependencies {
     done
 }
 
+function configure_ironic_testing_driver {
+    if [[ "$IRONIC_STAGING_DRIVER" =~ "ansible" && \
+          "$IRONIC_STAGING_DRIVER" =~ "ipmi" ]]; then
+        echo_summary "Configuring ansible deploy driver interface"
+        configure_ansible_deploy_driver
+    else
+        die $LINENO "Failed to configure ${IRONIC_STAGING_DRIVER} driver/hw type: not supported by devstack plugin or other pre-conditions not met"
+    fi
+}
+
+function configure_ansible_deploy_driver {
+    # NOTE(pas-ha) DevStack now defaults to tls-proxy being enabled.
+    # Using custom CA bundle is not that easy with TinyCore,
+    # requiring extra rebuild steps and resulting in bigger image,
+    # so just disable validating SSL certs for now in DevStack
+    # similar to what ironic does for IPA by default in DevStack
+    iniset $IRONIC_CONF_FILE ansible image_store_insecure True
+}
+
 function set_ironic_testing_driver {
     if [[ "$IRONIC_STAGING_DRIVER" == "pxe_ipmitool_ansible" && \
           "$IRONIC_DEPLOY_DRIVER" == "agent_ipmitool" && \
@@ -168,6 +187,9 @@ if is_service_enabled ir-api ir-cond; then
     elif [[ "$1" == "stack" && "$2" == "post-config" ]]; then
         echo_summary "Configuring Ironic-staging-drivers"
         update_ironic_enabled_drivers
+        if [[ -n ${IRONIC_STAGING_DRIVER} ]]; then
+            configure_ironic_testing_driver
+        fi
     elif [[ "$1" == "stack" && "$2" == "extra" ]]; then
         if [ -n $IRONIC_STAGING_DRIVER ]; then
             set_ironic_testing_driver
