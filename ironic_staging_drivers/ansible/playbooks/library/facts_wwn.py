@@ -1,4 +1,3 @@
-#!/usr/bin/python
 # -*- coding: utf-8 -*-
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -13,36 +12,33 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-try:
-    import pyudev
-    HAS_PYUDEV = True
-except ImportError:
-    HAS_PYUDEV = False
-
-
 COLLECT_INFO = (('wwn', 'WWN'), ('serial', 'SERIAL_SHORT'),
                 ('wwn_with_extension', 'WWN_WITH_EXTENSION'),
                 ('wwn_vendor_extension', 'WWN_VENDOR_EXTENSION'))
 
 
-def get_devices_wwn(devices):
-
-    if not HAS_PYUDEV:
-        LOG.warning('Can not collect "wwn", "wwn_with_extension", '
-                    '"wwn_vendor_extension" and "serial" when using '
-                    'root device hints because there\'s no UDEV python '
-                    'binds installed')
-        return
+# TODO(pas-ha) replace module.log with module.warn
+# after we require Ansible >= 2.3
+def get_devices_wwn(devices, module):
+    try:
+        import pyudev
+        # NOTE(pas-ha) creating context might fail if udev is missing
+        context = pyudev.Context()
+    except ImportError:
+        module.log('Can not collect "wwn", "wwn_with_extension", '
+                   '"wwn_vendor_extension" and "serial" when using '
+                   'root device hints because there\'s no UDEV python '
+                   'binds installed')
+        return {}
 
     dev_dict = {}
-    context = pyudev.Context()
     for device in devices:
         name = '/dev/' + device
         try:
             udev = pyudev.Device.from_device_file(context, name)
         except (ValueError, EnvironmentError, pyudev.DeviceNotFoundError) as e:
-            LOG.warning('Device %(dev)s is inaccessible, skipping... '
-                        'Error: %(error)s', {'dev': name, 'error': e})
+            module.log('Device %(dev)s is inaccessible, skipping... '
+                       'Error: %(error)s', {'dev': name, 'error': e})
             continue
 
         dev_dict[device] = {}
@@ -61,7 +57,7 @@ def main():
     )
 
     devices = module.params['devices']
-    data = get_devices_wwn(devices)
+    data = get_devices_wwn(devices, module)
     module.exit_json(**data)
 
 
