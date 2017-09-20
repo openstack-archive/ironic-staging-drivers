@@ -163,10 +163,12 @@ function set_ansible_deploy_driver {
     for node in $(openstack --os-cloud devstack baremetal node list -f value -c UUID); do
         # switch driver to ansible-enabled hardware type, use minimal API version that supports setting driver interfaces,
         # set nodes to use the uploaded ramdisk and appropriate SSH creds.
+        # also set the vendor root device hint for virtio bus
         # TODO(pas-ha) remove API version when OSC defaults to 'latest'
         # TODO(pas-ha) change the job definition in project-config to set the HW type
         # when stable/pike is no longer supported
         openstack --os-cloud devstack-admin --os-baremetal-api-version 1.31 baremetal node set $node \
+             --property root_device='{"vendor": "0x1af4"}' \
              --driver staging-ansible-ipmi \
              --deploy-interface staging-ansible \
              --driver-info deploy_ramdisk=$ansible_ramdisk_id \
