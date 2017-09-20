@@ -1,4 +1,3 @@
-#!/usr/bin/python
 # -*- coding: utf-8 -*-
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -74,7 +73,7 @@ def main():
     devices = module.params['ansible_devices']
     devices_wwn = module.params['ansible_devices_wwn']
 
-    if devices_wwn is None:
+    if not devices_wwn:
         extra = set(hints) & EXTRA_PARAMS
         if extra:
             module.fail_json(msg='Extra hints (supported by additional ansible'
