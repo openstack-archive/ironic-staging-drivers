@@ -167,8 +167,10 @@ function set_ansible_deploy_driver {
 
     # set nodes to use ansible_deploy driver with uploaded ramdisk
     # using pxe_ipmitool_ansible instead of agent_ipmitool
+    # also set the vendor root device hint for virtio bus
     for node in $(openstack --os-cloud devstack baremetal node list -f value -c UUID); do
         openstack --os-cloud devstack-admin baremetal node set $node \
+            --property root_device='{"vendor": "0x1af4"}' \
             --driver ${IRONIC_STAGING_DRIVER} \
             --driver-info deploy_ramdisk=$ansible_ramdisk_id \
             --driver-info ansible_deploy_username=tc \
