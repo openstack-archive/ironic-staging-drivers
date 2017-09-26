@@ -22,6 +22,7 @@ sys.path.insert(0, os.path.abspath('../..'))
 extensions = [
     'sphinx.ext.autodoc',
     #'sphinx.ext.intersphinx',
+    'reno.sphinxext',
     'oslosphinx'
 ]
 
@@ -83,3 +84,8 @@ latex_documents = [
 
 # Example configuration for intersphinx: refer to the Python standard library.
 #intersphinx_mapping = {'http://docs.python.org/': None}
+
+exclude_patterns = ['*releasenotes*']
+if os.environ.get('TOX_DOCS_WITH_RENO') == 'True':
+    tags.add('releasenotes')
+    exclude_patterns = []
