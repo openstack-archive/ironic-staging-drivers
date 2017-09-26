@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.abspath('../..'))
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
 extensions = [
     'sphinx.ext.autodoc',
-    #'sphinx.ext.intersphinx',
+    'reno.sphinxext',
     'oslosphinx'
 ]
 
@@ -83,3 +83,8 @@ latex_documents = [
 
 # Example configuration for intersphinx: refer to the Python standard library.
 #intersphinx_mapping = {'http://docs.python.org/': None}
+
+exclude_patterns = ['*releasenotes*']
+if os.path.isdir(os.path.join(os.path.abspath('../..'), '.git')):
+    tags.add('releasenotes')
+    exclude_patterns = []

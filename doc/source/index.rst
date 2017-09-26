@@ -9,6 +9,13 @@ Contents:
    README
    drivers
 
+.. only:: releasenotes
+
+   .. toctree::
+      :maxdepth: 2
+
+      releasenotes
+
 Indices and tables
 ==================
 
