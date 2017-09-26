@@ -250,6 +250,25 @@ post_deploy_get_power_state_retry_interval
     after triggering soft poweroff.
     Default is 5.
 
+image_store_insecure
+    Boolean to disable validation of server SSL certificate of
+    the image store when downloading image and configdrive.
+    Default is False.
+
+image_store_cafile
+    Path to custom PEM CA bundle to use for validation of server SSL
+    certificate of the image store when downloading image of configdrive.
+    Is not currently used by default playbooks included with the driver.
+
+image_store_certfile
+    Path to client certificate file to use for client SSL authentication
+    to the image store when downloading image of configdrive.
+    Is not currently used by default playbooks included with the driver.
+
+image_store_keyfile
+    Path to private key file to use for client SSL authentication
+    to the image store when downloading image of configdrive.
+    Is not currently used by default playbooks included with the driver.
 
 Driver properties for the Node
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -441,6 +460,27 @@ Some more explanations:
       option ``[ansible]extra_memory``.
     - if ``checksum`` initially does not start with ``hash-algo:``, hashing
       algorithm is assumed to be ``md5`` (default in Glance).
+    - ``validate_certs`` - boolean (``yes/no``) flag that turns validating
+      image store SSL certificate on or off (default is 'yes').
+      Governed by ``[ansible]image_store_insecure`` option
+      in ironic configuration file.
+    - ``cafile`` - custom CA bundle to use for validating image store
+      SSL certificate.
+      Takes value of ``[ansible]image_store_cafile`` if that is defined.
+      Currently is not used by default playbooks, as Ansible has no way to
+      specify the custom CA bundle to use for single HTTPS actions,
+      however you can use this value in your custom playbooks to for example
+      upload and register this CA in the ramdisk at deploy time.
+    - ``client_cert`` - cert file for client-side SSL authentication.
+      Takes value of ``[ansible]image_store_certfile`` option if defined.
+      Currently is not used by default playbooks as it is generally available
+      since Ansible 2.4 only,
+      however you can use this value in your custom playbooks.
+    - ``client_key`` - private key file for client-side SSL authentication.
+      Takes value of ``[ansible]image_store_keyfile`` option if defined.
+      Currently is not used by default playbooks as it is generally available
+      since Ansible 2.4 only,
+      however you can use this value in your custom playbooks.
 
 ``ironic.partiton_info.partitions``
     Optional. List of dictionaries defining partitions to create on the node
