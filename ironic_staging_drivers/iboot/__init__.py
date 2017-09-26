@@ -22,9 +22,12 @@ from ironic.drivers.modules import agent
 from ironic.drivers.modules import fake
 from ironic.drivers.modules import iscsi_deploy
 from ironic.drivers.modules import pxe
+from oslo_log import log as logging
 from oslo_utils import importutils
 
 from ironic_staging_drivers.iboot import power as iboot_power
+
+LOG = logging.getLogger(__name__)
 
 
 class FakeIBootFakeDriver(base.BaseDriver):
@@ -51,6 +54,9 @@ class PXEIBootISCSIDriver(base.BaseDriver):
     this class is merely the glue between them.
     """
     def __init__(self):
+        LOG.warning("This driver is deprecated and will be removed "
+                    "in the Rocky release. "
+                    "Use 'staging-iboot' hardware type instead.")
         if not importutils.try_import('iboot'):
             raise ironic_exception.DriverLoadError(
                 driver=self.__class__.__name__,
@@ -71,6 +77,9 @@ class PXEIBootAgentDriver(base.BaseDriver):
     this class is merely the glue between them.
     """
     def __init__(self):
+        LOG.warning("This driver is deprecated and will be removed "
+                    "in the Rocky release. "
+                    "Use 'staging-iboot' hardware type instead.")
         if not importutils.try_import('iboot'):
             raise ironic_exception.DriverLoadError(
                 driver=self.__class__.__name__,
