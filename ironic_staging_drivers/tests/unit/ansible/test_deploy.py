@@ -77,32 +77,26 @@ class TestAnsibleMethods(db_base.DbTestCase):
                           ansible_deploy._parse_ansible_driver_info,
                           self.node, 'test')
 
-    def test__get_node_ip_dhcp(self):
-        dhcp_provider_mock = mock.Mock()
-        dhcp_factory.DHCPFactory._dhcp_provider = dhcp_provider_mock
-        dhcp_provider_mock.get_ip_addresses.return_value = ['ip']
+    @mock.patch.object(dhcp_factory.DHCPFactory, '_dhcp_provider',
+                       autospec=True)
+    def test__get_node_ip_dhcp(self, dhcp_mock):
+        dhcp_mock.get_ip_addresses.return_value = ['ip']
         with task_manager.acquire(self.context, self.node.uuid) as task:
             ansible_deploy._get_node_ip_dhcp(task)
-            dhcp_provider_mock.get_ip_addresses.assert_called_once_with(
-                task)
+            dhcp_mock.get_ip_addresses.assert_called_once_with(task)
 
-    def test__get_node_ip_dhcp_no_ip(self):
-        dhcp_provider_mock = mock.Mock()
-        dhcp_factory.DHCPFactory._dhcp_provider = dhcp_provider_mock
-        dhcp_provider_mock.get_ip_addresses.return_value = []
+    @mock.patch.object(dhcp_factory.DHCPFactory, '_dhcp_provider',
+                       autospec=True)
+    def test__get_node_ip_dhcp_no_ip(self, dhcp_mock):
+        dhcp_mock.get_ip_addresses.return_value = []
         with task_manager.acquire(self.context, self.node.uuid) as task:
             self.assertRaises(exception.FailedToGetIPAddressOnPort,
                               ansible_deploy._get_node_ip_dhcp, task)
 
-    def test__get_node_ip_dhcp_multiple_ip(self):
-        # self.config(group='ansible', use_ramdisk_callback=False)
-        # di_info = self.node.driver_internal_info
-        # di_info.pop('ansible_cleaning_ip')
-        # self.node.driver_internal_info = di_info
-        # self.node.save()
-        dhcp_provider_mock = mock.Mock()
-        dhcp_factory.DHCPFactory._dhcp_provider = dhcp_provider_mock
-        dhcp_provider_mock.get_ip_addresses.return_value = ['ip1', 'ip2']
+    @mock.patch.object(dhcp_factory.DHCPFactory, '_dhcp_provider',
+                       autospec=True)
+    def test__get_node_ip_dhcp_multiple_ip(self, dhcp_mock):
+        dhcp_mock.get_ip_addresses.return_value = ['ip1', 'ip2']
         with task_manager.acquire(self.context, self.node.uuid) as task:
             self.assertRaises(exception.InstanceDeployFailure,
                               ansible_deploy._get_node_ip_dhcp, task)
