@@ -113,9 +113,9 @@ function configure_ansible_deploy_driver {
     # of single ansible tasks to ironic log,
     # only in the stdout returned by processutils
     if [[ "$USE_SYSTEMD" == "True" ]]; then
-        iniset $IRONIC_STAGING_DRIVERS_DIR/ironic_staging_drivers/ansible/playbooks/callback_plugins/ironic_log.ini ironic use_journal "True"
+        iniset $IRONIC_CONF_FILE DEFAULT use_journal "True"
     elif [[ "$SYSLOG" == "True" ]]; then
-        iniset $IRONIC_STAGING_DRIVERS_DIR/ironic_staging_drivers/ansible/playbooks/callback_plugins/ironic_log.ini ironic use_syslog "True"
+        iniset $IRONIC_CONF_FILE DEFAULT use_syslog "True"
     fi
 }
 
