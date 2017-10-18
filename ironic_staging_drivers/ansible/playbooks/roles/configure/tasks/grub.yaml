@@ -58,7 +58,7 @@
     register: grub_version_string
   - name: install grub to disk
     become: yes
-    command: chroot {{ tmp_rootfs_mount }} /bin/sh -c '{{ grub_install_cmd }} /dev/{{ ansible_devices | first }}'
+    command: chroot {{ tmp_rootfs_mount }} /bin/sh -c '{{ grub_install_cmd }} {{ ironic_root_device }}'
   - name: preload lvm modules for grub2
     become: yes
     lineinfile:
