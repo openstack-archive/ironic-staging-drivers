@@ -1,0 +1,10 @@
+- project:
+    name: openstack/ironic-staging-drivers
+    check:
+      jobs:
+        - ironic-staging-drivers-dsvm-all-drivers
+        - ironic-staging-drivers-tempest-dsvm-ansible-wholedisk:
+            voting: false
+    gate:
+      jobs:
+        - ironic-staging-drivers-dsvm-all-drivers
