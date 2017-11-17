@@ -1,0 +1,11 @@
+Code-Review+2: Pavlo Shchelokovskyy <pshchelokovskyy@mirantis.com>
+Code-Review+1: Tuan Luong-Anh <tuanla@vn.fujitsu.com>
+Code-Review+1: Nguyen Van Trung <trungnv@vn.fujitsu.com>
+Code-Review+2: Dmitry Tantsur <divius.inside@gmail.com>
+Workflow+1: Dmitry Tantsur <divius.inside@gmail.com>
+Verified+2: Zuul
+Submitted-by: Zuul
+Submitted-at: Fri, 17 Nov 2017 09:03:28 +0000
+Reviewed-on: https://review.openstack.org/520860
+Project: openstack/ironic-staging-drivers
+Branch: refs/heads/master
