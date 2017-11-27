@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    Added new driver usable for virtual machines posing as baremetal nodes,
+    which uses `oVirt <https://ovirt.org/>`_ platform for virtual machine
+    management.
+    This driver is now available as ``staging-ovirt`` hardware type provided
+    by ``ironic-staging-drivers`` package.
