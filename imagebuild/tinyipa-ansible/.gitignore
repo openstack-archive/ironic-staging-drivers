@@ -1,5 +1,0 @@
-build_files/cache
-rebuild/
-*.gz
-*.initramfs
-*.vmlinuz

@@ -1,0 +1,27 @@
+---
+upgrade:
+  - |
+    Ansible-deploy interface and drivers using it were removed from
+    ironic-staging-drivers project. The ``ansible`` deploy interface is now
+    part of ironic project itself, please use the implementation defined there.
+
+    The ``ansible`` deploy interface must be explicitly enabled in ironic's
+    configuartion file, can only be used with hardware types, with any hardware
+    type defined in either ironic (except for ``oneview``) or
+    ironic-staging-drivers (except for ``staging-amt``) projects.
+    The correspondence matrix is
+
+    - ``staging-ansible`` deploy interface ⟶ ``ansible`` deploy interface
+    - ``staging-ansible-ipmi`` hardware type ⟶ ``ipmi`` hardware type
+      with ``ansible`` deploy interface
+    -  ``pxe-ipmitool-ansible`` classic driver ⟶ ``ipmi`` hardware type
+       with ``ansible`` deploy interface
+    - ``pxe-libvirt-ansible`` classic driver ⟶ ``staging-libvirt``
+      hardware type with ``ansible`` deploy interface
+
+    Note that the version in ironic does not support heartbeat-less operation,
+    so if you were using ansible interface with
+    ``[ansible]/use_ramdisk_callback = False`` option in the ironic's
+    configuartion file, you must rebuild your ramdisk to include a client
+    for ``lookup`` and ``heartbeat`` endponints of ironic API
+    (for example ``ironic-python-agent``).
