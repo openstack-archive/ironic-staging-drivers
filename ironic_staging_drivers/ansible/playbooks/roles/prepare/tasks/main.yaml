@@ -1,2 +1,0 @@
-- include: parted.yaml
-  when: "{{ ironic.image.type | default('whole-disk-image') == 'partition' }}"

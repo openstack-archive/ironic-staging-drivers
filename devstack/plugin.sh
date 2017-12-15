@@ -3,7 +3,9 @@
 
 IRONIC_STAGING_DRIVERS_DIR=$DEST/ironic-staging-drivers
 IRONIC_DRIVERS_EXCLUDED_DIRS='tests common'
-IRONIC_STAGING_DRIVER=${IRONIC_STAGING_DRIVER:-}
+# NOTE(pas-ha) change this back when there is any other then former
+# ansible-deploy driver being able to set up by this devstack plugin
+IRONIC_STAGING_DRIVER=""
 # NOTE(pas-ha) skip iboot drivers by default as they require package not available on PyPI
 IRONIC_STAGING_DRIVERS_SKIPS=${IRONIC_STAGING_DRIVERS_SKIPS:-"iboot"}
 IRONIC_STAGING_DRIVERS_FILTERS=${IRONIC_STAGING_DRIVERS_FILTERS:-}
@@ -14,6 +16,7 @@ fi
 if [[ -n "$IRONIC_STAGING_DRIVERS_FILTERS" ]]; then
     IRONIC_STAGING_LIST_EP_CMD+=" -f $IRONIC_STAGING_DRIVERS_FILTERS"
 fi
+
 
 function setup_ironic_enabled_interfaces_for {
 
@@ -91,88 +94,11 @@ function install_drivers_dependencies {
 }
 
 function configure_ironic_testing_driver {
-    if [[ "$IRONIC_STAGING_DRIVER" =~ "ansible" && \
-          "$IRONIC_STAGING_DRIVER" =~ "ipmi" ]]; then
-        echo_summary "Configuring ansible deploy driver interface"
-        configure_ansible_deploy_driver
-    else
-        die $LINENO "Failed to configure ${IRONIC_STAGING_DRIVER} driver/hw type: not supported by devstack plugin or other pre-conditions not met"
-    fi
-}
-
-function configure_ansible_deploy_driver {
-    # NOTE(pas-ha) DevStack now defaults to tls-proxy being enabled.
-    # Using custom CA bundle is not that easy with TinyCore,
-    # requiring extra rebuild steps and resulting in bigger image,
-    # so just disable validating SSL certs for now in DevStack
-    # similar to what ironic does for IPA by default in DevStack
-    iniset $IRONIC_CONF_FILE ansible image_store_insecure True
-
-    # set logging for ansible-deploy
-    # NOTE(pas-ha) w/o systemd or syslog, there will be no output
-    # of single ansible tasks to ironic log,
-    # only in the stdout returned by processutils
-    if [[ "$USE_SYSTEMD" == "True" ]]; then
-        iniset $IRONIC_STAGING_DRIVERS_DIR/ironic_staging_drivers/ansible/playbooks/callback_plugins/ironic_log.ini ironic use_journal "True"
-    elif [[ "$SYSLOG" == "True" ]]; then
-        iniset $IRONIC_STAGING_DRIVERS_DIR/ironic_staging_drivers/ansible/playbooks/callback_plugins/ironic_log.ini ironic use_syslog "True"
-    fi
+    die $LINENO "Failed to configure ${IRONIC_STAGING_DRIVER} driver/hw type: not supported by devstack plugin or other pre-conditions not met"
 }
 
 function set_ironic_testing_driver {
-    if [[ "$IRONIC_STAGING_DRIVER" =~ "ansible" && \
-          "$IRONIC_STAGING_DRIVER" =~ "ipmi" && \
-          "$IRONIC_DEPLOY_DRIVER" == "agent_ipmitool" && \
-          "$IRONIC_RAMDISK_TYPE" == "tinyipa" ]]; then
-        echo_summary "Setting nodes to use 'staging-ansible-ipmi' hardware type with 'staging-ansible' deploy interface"
-        set_ansible_deploy_driver
-    else
-        die $LINENO "Failed to configure ironic to use ${IRONIC_STAGING_DRIVER} driver/hw type: not supported by devstack plugin or other pre-conditions not met"
-    fi
-}
-
-function set_ansible_deploy_driver {
-    local tinyipa_ramdisk_name
-    local ansible_key_file
-    local ansible_ramdisk_id
-
-    # ensure the tinyipa ramdisk is present in Glance
-    tinyipa_ramdisk_name=$(openstack --os-cloud devstack-admin image show ${IRONIC_DEPLOY_RAMDISK_ID} -f value -c name)
-    if [ -z $tinyipa_ramdisk_name ]; then
-        die $LINENO "Failed to find ironic deploy ramdisk ${IRONIC_DEPLOY_RAMDISK_ID}"
-    fi
-
-    cd $IRONIC_STAGING_DRIVERS_DIR/imagebuild/tinyipa-ansible
-    # download original tinyipa ramdisk from Glance
-    openstack --os-cloud devstack-admin image save ${IRONIC_DEPLOY_RAMDISK_ID} --file ${tinyipa_ramdisk_name}
-    export TINYIPA_RAMDISK_FILE="${PWD}/${tinyipa_ramdisk_name}"
-    # generate SSH keys for deploy ramdisk and ansible driver
-    mkdir -p ${IRONIC_DATA_DIR}/ssh_keys
-    ansible_key_file="${IRONIC_DATA_DIR}/ssh_keys/ansible_key"
-    ssh-keygen -q -t rsa -N "" -f ${ansible_key_file}
-    export SSH_PUBLIC_KEY=${ansible_key_file}.pub
-    # rebuild ramdisk, produces ansible-${tinyipa_ramdisk_name} file
-    make
-    # upload rebuilt ramdisk to Glance
-    ansible_ramdisk_id=$(openstack --os-cloud devstack-admin image create "ansible-${tinyipa_ramdisk_name}" \
-        --file "${PWD}/ansible-${tinyipa_ramdisk_name}" \
-        --disk-format ari --container-format ari \
-        --public \
-        -f value -c id)
-
-    for node in $(openstack --os-cloud devstack baremetal node list -f value -c UUID); do
-        # switch driver to ansible-enabled hardware type, use minimal API version that supports setting driver interfaces,
-        # set nodes to use the uploaded ramdisk and appropriate SSH creds.
-        # TODO(pas-ha) remove API version when OSC defaults to 'latest'
-        # TODO(pas-ha) change the job definition in project-config to set the HW type
-        # when stable/pike is no longer supported
-        openstack --os-cloud devstack-admin --os-baremetal-api-version 1.31 baremetal node set $node \
-             --driver staging-ansible-ipmi \
-             --deploy-interface staging-ansible \
-             --driver-info deploy_ramdisk=$ansible_ramdisk_id \
-             --driver-info ansible_deploy_username=tc \
-             --driver-info ansible_deploy_key_file=$ansible_key_file
-    done
+    die $LINENO "Failed to configure ironic to use ${IRONIC_STAGING_DRIVER} driver/hw type: not supported by devstack plugin or other pre-conditions not met"
 }
 
 echo_summary "ironic-staging-drivers plugin.sh was called..."

@@ -18,7 +18,6 @@ from ironic.drivers.modules import iscsi_deploy
 from ironic.drivers.modules import pxe
 from oslo_log import log as logging
 
-from ironic_staging_drivers.ansible import deploy as ansible_deploy
 from ironic_staging_drivers.libvirt import power
 
 LOG = logging.getLogger(__name__)
@@ -82,14 +81,7 @@ class LibvirtHardware(generic.GenericHardware):
     """Libvirt hardware type.
 
     Uses Libvirt for power and management.
-    Also support ansible-deploy.
     """
-
-    @property
-    def supported_deploy_interfaces(self):
-        """List of supported deploy interfaces."""
-        return (super(LibvirtHardware, self).supported_deploy_interfaces +
-                [ansible_deploy.AnsibleDeploy])
 
     @property
     def supported_management_interfaces(self):

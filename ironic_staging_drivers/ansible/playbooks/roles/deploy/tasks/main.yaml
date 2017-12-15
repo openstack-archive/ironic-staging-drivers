@@ -1,7 +1,0 @@
-- include: download.yaml
-  when: "{{ ironic.image.disk_format != 'raw' }}"
-
-- include: write.yaml
-
-- include: configdrive.yaml
-  when: "{{ ironic.configdrive is defined }}"
