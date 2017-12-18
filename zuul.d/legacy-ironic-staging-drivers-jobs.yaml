@@ -32,3 +32,4 @@
       - openstack/python-ironicclient
       - openstack/tempest
       - openstack/virtualbmc
+      - openstack/ironic-tempest-plugin
