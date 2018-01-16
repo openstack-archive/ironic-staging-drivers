@@ -1,0 +1,9 @@
+Code-Review+2: Pavlo Shchelokovskyy <pshchelokovskyy@mirantis.com>
+Code-Review+2: Dmitry Tantsur <divius.inside@gmail.com>
+Workflow+1: Dmitry Tantsur <divius.inside@gmail.com>
+Verified+2: Zuul
+Submitted-by: Zuul
+Submitted-at: Tue, 16 Jan 2018 12:06:04 +0000
+Reviewed-on: https://review.openstack.org/523732
+Project: openstack/ironic-staging-drivers
+Branch: refs/heads/master
