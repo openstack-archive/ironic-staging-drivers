@@ -1,5 +1,4 @@
 - project:
-    name: openstack/ironic-staging-drivers
     check:
       jobs:
         - ironic-staging-drivers-dsvm-all-drivers
