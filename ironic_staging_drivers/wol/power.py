@@ -133,7 +133,7 @@ class WakeOnLanPower(base.PowerInterface):
         return states.POWER_OFF if pstate is states.NOSTATE else pstate
 
     @task_manager.require_exclusive_lock
-    def set_power_state(self, task, pstate):
+    def set_power_state(self, task, pstate, timeout=None):
         """Wakes the task's node on power on. Powering off is not supported.
 
         Wakes the task's node on. Wake-On-Lan does not support powering
@@ -142,12 +142,21 @@ class WakeOnLanPower(base.PowerInterface):
         :param task: a TaskManager instance containing the node to act on.
         :param pstate: The desired power state, one of ironic.common.states
             POWER_ON, POWER_OFF.
+        :param timeout: timeout (in seconds). Unsupported by this interface.
         :raises: InvalidParameterValue if parameters are invalid.
         :raises: MissingParameterValue if required parameters are missing.
         :raises: WOLOperationError if an error occur when sending the
             magic packets
 
         """
+        # TODO(rloo): Support timeouts!
+        if timeout is not None:
+            LOG.warning(
+                "The 'wol' Power Interface's 'set_power_state' method "
+                "doesn't support the 'timeout' parameter. Ignoring "
+                "timeout=%(timeout)s",
+                {'timeout': timeout})
+
         node = task.node
         params = _parse_parameters(task)
         if pstate == states.POWER_ON:
@@ -163,13 +172,14 @@ class WakeOnLanPower(base.PowerInterface):
                                               'pstate': pstate})
 
     @task_manager.require_exclusive_lock
-    def reboot(self, task):
+    def reboot(self, task, timeout=None):
         """Not supported. Cycles the power to the task's node.
 
         This operation is not fully supported by the Wake-On-Lan
         driver. So this method will just try to power the task's node on.
 
         :param task: a TaskManager instance containing the node to act on.
+        :param timeout: timeout (in seconds).
         :raises: InvalidParameterValue if parameters are invalid.
         :raises: MissingParameterValue if required parameters are missing.
         :raises: WOLOperationError if an error occur when sending the
@@ -179,7 +189,7 @@ class WakeOnLanPower(base.PowerInterface):
         LOG.info('Reboot called for node %s. Wake-On-Lan does '
                  'not fully support this operation. Trying to '
                  'power on the node.', task.node.uuid)
-        self.set_power_state(task, states.POWER_ON)
+        self.set_power_state(task, states.POWER_ON, timeout=timeout)
 
     def get_supported_power_states(self, task):
         """Get a list of the supported power states.

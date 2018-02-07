@@ -237,29 +237,47 @@ class AMTPower(base.PowerInterface):
         return _power_status(task.node)
 
     @task_manager.require_exclusive_lock
-    def set_power_state(self, task, pstate):
+    def set_power_state(self, task, pstate, timeout=None):
         """Set the power state of the node.
 
         Turn the node power on or off.
 
         :param task: a TaskManager instance contains the target node.
         :param pstate: The desired power state of the node.
+        :param timeout: timeout (in seconds). Unsupported by this interface.
         :raises: PowerStateFailure if the power cannot set to pstate.
         :raises: AMTFailure.
         :raises: AMTConnectFailure.
         :raises: InvalidParameterValue
         """
+        # TODO(rloo): Support timeouts!
+        if timeout is not None:
+            LOG.warning(
+                "The 'amt' Power Interface's 'set_power_state' method "
+                "doesn't support the 'timeout' parameter. Ignoring "
+                "timeout=%(timeout)s",
+                {'timeout': timeout})
+
         _set_and_wait(task, pstate)
 
     @task_manager.require_exclusive_lock
-    def reboot(self, task):
+    def reboot(self, task, timeout=None):
         """Cycle the power of the node
 
         :param task: a TaskManager instance contains the target node.
+        :param timeout: timeout (in seconds). Unsupported by this interface.
         :raises: PowerStateFailure if failed to reboot.
         :raises: AMTFailure.
         :raises: AMTConnectFailure.
         :raises: InvalidParameterValue
         """
+        # TODO(rloo): Support timeouts!
+        if timeout is not None:
+            LOG.warning("The 'amt' Power Interface's 'reboot' method "
+                        "doesn't support the 'timeout' parameter. Ignoring "
+                        "timeout=%(timeout)s",
+                        {'timeout': timeout})
+        current_power_state = self.get_power_state(task)
+
         _set_and_wait(task, states.POWER_OFF)
         _set_and_wait(task, states.POWER_ON)

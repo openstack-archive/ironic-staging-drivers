@@ -72,7 +72,7 @@ class oVirtDriverTestCase(db_base.DbTestCase):
         with task_manager.acquire(self.context, self.node.uuid) as task:
             task.driver.power.set_power_state(task, states.POWER_ON)
             mock_power.assert_called_once_with(task.driver.power, task,
-                                               states.POWER_ON)
+                                               states.POWER_ON, timeout=None)
 
     @mock.patch.object(ovirt_power.oVirtPower, 'set_power_state',
                        autospec=True, spec_set=True)
@@ -80,7 +80,7 @@ class oVirtDriverTestCase(db_base.DbTestCase):
         with task_manager.acquire(self.context, self.node.uuid) as task:
             task.driver.power.set_power_state(task, states.POWER_OFF)
             mock_power.assert_called_once_with(task.driver.power, task,
-                                               states.POWER_OFF)
+                                               states.POWER_OFF, timeout=None)
 
     def test_get_supported_power_states(self):
         with task_manager.acquire(
