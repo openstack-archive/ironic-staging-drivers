@@ -158,12 +158,24 @@ class WakeOnLanDriverTestCase(db_base.DbTestCase):
             pstate = task.driver.power.get_power_state(task)
             self.assertEqual(states.POWER_OFF, pstate)
 
+    @mock.patch.object(wol_power.LOG, 'warning')
     @mock.patch.object(wol_power, '_send_magic_packets', autospec=True,
                        spec_set=True)
-    def test_set_power_state_power_on(self, mock_magic):
+    def test_set_power_state_power_on(self, mock_magic, mock_log):
         with task_manager.acquire(self.context, self.node.uuid) as task:
             task.driver.power.set_power_state(task, states.POWER_ON)
             mock_magic.assert_called_once_with(task, '255.255.255.255', 9)
+            self.assertFalse(mock_log.called)
+
+    @mock.patch.object(wol_power.LOG, 'warning')
+    @mock.patch.object(wol_power, '_send_magic_packets', autospec=True,
+                       spec_set=True)
+    def test_set_power_state_power_on_timeout(self, mock_magic, mock_log):
+        with task_manager.acquire(self.context, self.node.uuid) as task:
+            task.driver.power.set_power_state(task, states.POWER_ON,
+                                              timeout=13)
+            mock_magic.assert_called_once_with(task, '255.255.255.255', 9)
+            self.assertTrue(mock_log.called)
 
     @mock.patch.object(wol_power.LOG, 'info', autospec=True, spec_set=True)
     @mock.patch.object(wol_power, '_send_magic_packets', autospec=True,
@@ -193,7 +205,7 @@ class WakeOnLanDriverTestCase(db_base.DbTestCase):
             task.driver.power.reboot(task)
             mock_log.assert_called_once_with(mock.ANY, self.node.uuid)
             mock_power.assert_called_once_with(task.driver.power, task,
-                                               states.POWER_ON)
+                                               states.POWER_ON, timeout=None)
 
     def test_get_supported_power_states(self):
         with task_manager.acquire(

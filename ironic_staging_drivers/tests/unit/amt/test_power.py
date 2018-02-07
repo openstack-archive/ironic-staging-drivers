@@ -262,15 +262,17 @@ class AMTPowerTestCase(db_base.DbTestCase):
                              task.driver.power.get_power_state(task))
             mock_ps.assert_called_once_with(task.node)
 
+    @mock.patch.object(amt_power.LOG, 'warning')
     @mock.patch.object(amt_power, '_set_and_wait', spec_set=True,
                        autospec=True)
-    def test_set_power_state(self, mock_saw):
+    def test_set_power_state(self, mock_saw, mock_log):
         with task_manager.acquire(self.context, self.node.uuid,
                                   shared=False) as task:
             pstate = states.POWER_ON
             mock_saw.return_value = states.POWER_ON
             task.driver.power.set_power_state(task, pstate)
             mock_saw.assert_called_once_with(task, pstate)
+            self.assertFalse(mock_log.called)
 
     @mock.patch.object(amt_power, '_set_and_wait', spec_set=True,
                        autospec=True)
@@ -285,12 +287,38 @@ class AMTPowerTestCase(db_base.DbTestCase):
                               task, pstate)
             mock_saw.assert_called_once_with(task, pstate)
 
+    @mock.patch.object(amt_power.LOG, 'warning')
     @mock.patch.object(amt_power, '_set_and_wait', spec_set=True,
                        autospec=True)
-    def test_reboot(self, mock_saw):
+    def test_set_power_state_timeout(self, mock_saw, mock_log):
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            pstate = states.POWER_ON
+            mock_saw.return_value = states.POWER_ON
+            task.driver.power.set_power_state(task, pstate, timeout=12)
+            mock_saw.assert_called_once_with(task, pstate)
+            self.assertTrue(mock_log.called)
+
+    @mock.patch.object(amt_power.LOG, 'warning')
+    @mock.patch.object(amt_power, '_set_and_wait', spec_set=True,
+                       autospec=True)
+    def test_reboot(self, mock_saw, mock_log):
         with task_manager.acquire(self.context, self.node.uuid,
                                   shared=False) as task:
             task.driver.power.reboot(task)
             calls = [mock.call(task, states.POWER_OFF),
                      mock.call(task, states.POWER_ON)]
             mock_saw.assert_has_calls(calls)
+            self.assertFalse(mock_log.called)
+
+    @mock.patch.object(amt_power.LOG, 'warning')
+    @mock.patch.object(amt_power, '_set_and_wait', spec_set=True,
+                       autospec=True)
+    def test_reboot_timeout(self, mock_saw, mock_log):
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            task.driver.power.reboot(task, timeout=13)
+            calls = [mock.call(task, states.POWER_OFF),
+                     mock.call(task, states.POWER_ON)]
+            mock_saw.assert_has_calls(calls)
+            self.assertTrue(mock_log.called)
