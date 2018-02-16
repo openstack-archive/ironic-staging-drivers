@@ -1,1 +1,1 @@
-git+https://git.openstack.org/openstack/ironic#egg=ironic
+git+https://git.openstack.org/openstack/ironic@stable/stein#egg=ironic
