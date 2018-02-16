@@ -242,12 +242,13 @@ class IBootPower(base.PowerInterface):
         return _power_status(driver_info)
 
     @task_manager.require_exclusive_lock
-    def set_power_state(self, task, pstate):
+    def set_power_state(self, task, pstate, timeout=None):
         """Turn the power on or off.
 
         :param task: a TaskManager instance containing the node to act on.
         :param pstate: The desired power state, one of ironic.common.states
             POWER_ON, POWER_OFF.
+        :param timeout: timeout (in seconds). Unsupported by this interface.
         :raises: InvalidParameterValue if iboot parameters are invalid or if
             an invalid power state was specified.
         :raises: MissingParameterValue if required iboot parameters are
@@ -255,6 +256,14 @@ class IBootPower(base.PowerInterface):
         :raises: PowerStateFailure if the power couldn't be set to pstate.
 
         """
+        # TODO(rloo): Support timeouts!
+        if timeout is not None:
+            LOG.warning(
+                "The 'iboot' Power Interface's 'set_power_state' method "
+                "doesn't support the 'timeout' parameter. Ignoring "
+                "timeout=%(timeout)s",
+                {'timeout': timeout})
+
         driver_info = _parse_driver_info(task.node)
         if pstate == states.POWER_ON:
             _switch(driver_info, True)
@@ -268,10 +277,11 @@ class IBootPower(base.PowerInterface):
         _check_power_state(driver_info, pstate)
 
     @task_manager.require_exclusive_lock
-    def reboot(self, task):
+    def reboot(self, task, timeout=None):
         """Cycles the power to the task's node.
 
         :param task: a TaskManager instance containing the node to act on.
+        :param timeout: timeout (in seconds). Unsupported by this interface.
         :raises: InvalidParameterValue if iboot parameters are invalid.
         :raises: MissingParameterValue if required iboot parameters are
             missing.
@@ -279,6 +289,12 @@ class IBootPower(base.PowerInterface):
             POWER_ON.
 
         """
+        if timeout is not None:
+            LOG.warning("The 'iboot' Power Interface's 'reboot' method "
+                        "doesn't support the 'timeout' parameter. Ignoring "
+                        "timeout=%(timeout)s",
+                        {'timeout': timeout})
+
         driver_info = _parse_driver_info(task.node)
         _switch(driver_info, False)
         _sleep_switch(CONF.iboot.reboot_delay)

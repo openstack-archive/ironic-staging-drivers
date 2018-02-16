@@ -369,7 +369,7 @@ class LibvirtPower(base.PowerInterface):
         return _get_power_state(domain)
 
     @task_manager.require_exclusive_lock
-    def set_power_state(self, task, pstate):
+    def set_power_state(self, task, pstate, timeout=None):
         """Turn the power on or off.
 
         Set the power state of the task's node.
@@ -377,6 +377,7 @@ class LibvirtPower(base.PowerInterface):
         :param task: a TaskManager instance containing the node to act on.
         :param pstate: Either POWER_ON or POWER_OFF from :class:
             `ironic.common.states`.
+        :param timeout: timeout (in seconds). Unsupported by this interface.
         :raises: InvalidParameterValue if any connection parameters are
             incorrect, or if the desired power state is invalid.
         :raises: MissingParameterValue when a required parameter is missing
@@ -385,6 +386,13 @@ class LibvirtPower(base.PowerInterface):
         :raises: PowerStateFailure if it failed to set power state to pstate.
         :raises: LibvirtError if failed to connect to the Libvirt uri.
         """
+        # TODO(rloo): Support timeouts!
+        if timeout is not None:
+            LOG.warning(
+                "The 'libvirt' Power Interface's 'set_power_state' method "
+                "doesn't support the 'timeout' parameter. Ignoring "
+                "timeout=%(timeout)s",
+                {'timeout': timeout})
 
         domain = _get_domain_by_macs(task)
         if pstate == states.POWER_ON:
@@ -400,12 +408,13 @@ class LibvirtPower(base.PowerInterface):
             raise ir_exc.PowerStateFailure(pstate=pstate)
 
     @task_manager.require_exclusive_lock
-    def reboot(self, task):
+    def reboot(self, task, timeout=None):
         """Cycles the power to the task's node.
 
         Power cycles a node.
 
         :param task: a TaskManager instance containing the node to act on.
+        :param timeout: timeout (in seconds). Unsupported by this interface.
         :raises: InvalidParameterValue if any connection parameters are
             incorrect.
         :raises: MissingParameterValue when a required parameter is missing
@@ -414,6 +423,12 @@ class LibvirtPower(base.PowerInterface):
         :raises: PowerStateFailure if it failed to set power state to POWER_ON.
         :raises: LibvirtError if failed to connect to the Libvirt uri.
         """
+        # TODO(rloo): Support timeouts!
+        if timeout is not None:
+            LOG.warning("The 'libvirt' Power Interface's 'reboot' method "
+                        "doesn't support the 'timeout' parameter. Ignoring "
+                        "timeout=%(timeout)s",
+                        {'timeout': timeout})
 
         domain = _get_domain_by_macs(task)
 

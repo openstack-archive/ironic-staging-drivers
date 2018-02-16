@@ -276,9 +276,11 @@ class IBootDriverTestCase(db_base.DbTestCase):
                 self.context, self.node.uuid, shared=True) as task:
             self.assertEqual(expected, task.driver.get_properties())
 
+    @mock.patch.object(iboot_power.LOG, 'warning')
     @mock.patch.object(iboot_power, '_power_status', autospec=True)
     @mock.patch.object(iboot_power, '_switch', autospec=True)
-    def test_set_power_state_good(self, mock_switch, mock_power_status):
+    def test_set_power_state_good(self, mock_switch, mock_power_status,
+                                  mock_log):
         mock_power_status.return_value = states.POWER_ON
 
         with task_manager.acquire(self.context, self.node.uuid) as task:
@@ -287,6 +289,23 @@ class IBootDriverTestCase(db_base.DbTestCase):
         # ensure functions were called with the valid parameters
         mock_switch.assert_called_once_with(self.info, True)
         mock_power_status.assert_called_once_with(self.info)
+        self.assertFalse(mock_log.called)
+
+    @mock.patch.object(iboot_power.LOG, 'warning')
+    @mock.patch.object(iboot_power, '_power_status', autospec=True)
+    @mock.patch.object(iboot_power, '_switch', autospec=True)
+    def test_set_power_state_timeout(self, mock_switch, mock_power_status,
+                                     mock_log):
+        mock_power_status.return_value = states.POWER_ON
+
+        with task_manager.acquire(self.context, self.node.uuid) as task:
+            task.driver.power.set_power_state(task, states.POWER_ON,
+                                              timeout=22)
+
+        # ensure functions were called with the valid parameters
+        mock_switch.assert_called_once_with(self.info, True)
+        mock_power_status.assert_called_once_with(self.info)
+        self.assertTrue(mock_log.called)
 
     @mock.patch.object(iboot_power, '_power_status', autospec=True)
     @mock.patch.object(iboot_power, '_switch', autospec=True)
@@ -329,12 +348,13 @@ class IBootDriverTestCase(db_base.DbTestCase):
                               task.driver.power.set_power_state,
                               task, states.NOSTATE)
 
+    @mock.patch.object(iboot_power.LOG, 'warning')
     @mock.patch.object(iboot_power, '_sleep_switch',
                        spec_set=types.FunctionType)
     @mock.patch.object(iboot_power, '_power_status', autospec=True)
     @mock.patch.object(iboot_power, '_switch', spec_set=types.FunctionType)
     def test_reboot_good(self, mock_switch, mock_power_status,
-                         mock_sleep_switch):
+                         mock_sleep_switch, mock_log):
         self.config(reboot_delay=3, group='iboot')
         manager = mock.MagicMock(spec_set=['switch', 'sleep'])
         mock_power_status.return_value = states.POWER_ON
@@ -349,6 +369,30 @@ class IBootDriverTestCase(db_base.DbTestCase):
             task.driver.power.reboot(task)
 
         self.assertEqual(expected, manager.mock_calls)
+        self.assertFalse(mock_log.called)
+
+    @mock.patch.object(iboot_power.LOG, 'warning')
+    @mock.patch.object(iboot_power, '_sleep_switch',
+                       spec_set=types.FunctionType)
+    @mock.patch.object(iboot_power, '_power_status', autospec=True)
+    @mock.patch.object(iboot_power, '_switch', spec_set=types.FunctionType)
+    def test_reboot_good_timeout(self, mock_switch, mock_power_status,
+                                 mock_sleep_switch, mock_log):
+        self.config(reboot_delay=3, group='iboot')
+        manager = mock.MagicMock(spec_set=['switch', 'sleep'])
+        mock_power_status.return_value = states.POWER_ON
+
+        manager.attach_mock(mock_switch, 'switch')
+        manager.attach_mock(mock_sleep_switch, 'sleep')
+        expected = [mock.call.switch(self.info, False),
+                    mock.call.sleep(3),
+                    mock.call.switch(self.info, True)]
+
+        with task_manager.acquire(self.context, self.node.uuid) as task:
+            task.driver.power.reboot(task, timeout=12)
+
+        self.assertEqual(expected, manager.mock_calls)
+        self.assertTrue(mock_log.called)
 
     @mock.patch.object(iboot_power, '_sleep_switch',
                        spec_set=types.FunctionType)

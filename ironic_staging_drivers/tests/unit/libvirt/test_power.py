@@ -485,9 +485,11 @@ class LibvirtPowerTestCase(db_base.DbTestCase):
             get_domain_mock.assert_called_once_with(task)
             get_power_state.assert_called_once_with(domain)
 
+    @mock.patch.object(power.LOG, 'warning')
     @mock.patch.object(power, '_power_on', autospec=True)
     @mock.patch.object(power, '_get_domain_by_macs', autospec=True)
-    def test_set_power_state_on(self, get_domain_mock, power_on_mock):
+    def test_set_power_state_on(self, get_domain_mock, power_on_mock,
+                                log_mock):
         domain = FakeLibvirtDomain()
         get_domain_mock.return_value = domain
         power_on_mock.return_value = states.POWER_ON
@@ -498,6 +500,25 @@ class LibvirtPowerTestCase(db_base.DbTestCase):
 
             get_domain_mock.assert_called_once_with(task)
             power_on_mock.assert_called_once_with(domain)
+            self.assertFalse(log_mock.called)
+
+    @mock.patch.object(power.LOG, 'warning')
+    @mock.patch.object(power, '_power_on', autospec=True)
+    @mock.patch.object(power, '_get_domain_by_macs', autospec=True)
+    def test_set_power_state_on_timeout(self, get_domain_mock, power_on_mock,
+                                        log_mock):
+        domain = FakeLibvirtDomain()
+        get_domain_mock.return_value = domain
+        power_on_mock.return_value = states.POWER_ON
+
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            task.driver.power.set_power_state(task, states.POWER_ON,
+                                              timeout=42)
+
+            get_domain_mock.assert_called_once_with(task)
+            power_on_mock.assert_called_once_with(domain)
+            self.assertTrue(log_mock.called)
 
     @mock.patch.object(power, '_power_off', autospec=True)
     @mock.patch.object(power, '_get_domain_by_macs', autospec=True)
