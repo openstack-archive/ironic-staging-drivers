@@ -35,6 +35,8 @@ ovirtsdk = importutils.try_import('ovirtsdk4')
 if ovirtsdk:
     import ovirtsdk4 as sdk
     import ovirtsdk4.types as otypes
+else:
+    sdk = otypes = None
 
 IRONIC_TO_OVIRT_DEVICE_MAPPING = {
     boot_devices.PXE: 'network',
@@ -208,7 +210,11 @@ class oVirtPower(base.PowerInterface):
             elif target_state == states.POWER_ON:
                 vm.start()
             elif target_state == states.REBOOT:
-                vm.reboot()
+                status = vm.get().status.value
+                if status == 'down':
+                    vm.start()
+                else:
+                    vm.reboot()
             else:
                 msg = _("'set_power_state' called with invalid power "
                         "state '%s'") % target_state
@@ -230,15 +236,7 @@ class oVirtPower(base.PowerInterface):
         :raises: ovirtsdk4.Error, if error encountered from
             oVirt operation.
         """
-        driver_info = _parse_driver_info(task.node)
-        vm_name = driver_info['ovirt_vm_name']
-        vm = _getvm(driver_info)
-        try:
-            vm.reboot()
-        except sdk.Error as e:
-            LOG.error("Could not restart VM vm %(name)s "
-                      "got error: %(error)s", {'name': vm_name, 'error': e})
-            raise staging_exception.oVirtError(err=e)
+        self.set_power_state(task, states.REBOOT, timeout=timeout)
 
 
 class oVirtManagement(base.ManagementInterface):
