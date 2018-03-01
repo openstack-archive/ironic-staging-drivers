@@ -208,7 +208,11 @@ class oVirtPower(base.PowerInterface):
             elif target_state == states.POWER_ON:
                 vm.start()
             elif target_state == states.REBOOT:
-                vm.reboot()
+                status = vm.get().status.value
+                if status == 'down':
+                    vm.start()
+                else:
+                    vm.reboot()
             else:
                 msg = _("'set_power_state' called with invalid power "
                         "state '%s'") % target_state
@@ -234,7 +238,11 @@ class oVirtPower(base.PowerInterface):
         vm_name = driver_info['ovirt_vm_name']
         vm = _getvm(driver_info)
         try:
-            vm.reboot()
+            status = vm.get().status.value
+            if status == 'down':
+                vm.start()
+            else:
+                vm.reboot()
         except sdk.Error as e:
             LOG.error("Could not restart VM vm %(name)s "
                       "got error: %(error)s", {'name': vm_name, 'error': e})
