@@ -110,3 +110,11 @@ class oVirtDriverTestCase(db_base.DbTestCase):
             task.driver.management.set_boot_device(task, boot_devices.DISK)
             mock_power.assert_called_once_with(task.driver.management, task,
                                                boot_devices.DISK)
+
+    @mock.patch.object(ovirt_power.oVirtPower, 'set_power_state',
+                       autospec=True, spec_set=True)
+    def test_set_reboot(self, mock_power):
+        with task_manager.acquire(self.context, self.node.uuid) as task:
+            task.driver.power.reboot(task)
+            mock_power.assert_called_once_with(task.driver.power, task,
+                                               states.POWER_ON)
