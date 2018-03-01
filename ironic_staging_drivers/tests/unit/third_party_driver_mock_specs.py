@@ -29,3 +29,8 @@ LIBVIRT_SPEC = (
     'VIR_CRED_AUTHNAME',
     'VIR_CRED_PASSPHRASE',
 )
+
+# ovirt
+OVIRT4_SPEC = (
+    'types',
+)

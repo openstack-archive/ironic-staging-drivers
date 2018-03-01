@@ -62,3 +62,11 @@ if not libvirt:
 if 'ironic_staging_drivers.libvirt.power' in sys.modules:
     six.moves.reload_module(
         sys.modules['ironic_staging_drivers.libvirt.power'])
+
+# attempt to load the external 'ovirtsdk4' library, which is required by
+# the optional drivers.modules.ovirt module
+ovirtsdk4 = importutils.try_import('ovirtsdk4')
+if not ovirtsdk4:
+    ov = mock.MagicMock(spec_set=mock_specs.OVIRT4_SPEC)
+    sys.modules['ovirtsdk4'] = ov
+    sys.modules['ovirtsdk4.types'] = ov.types
