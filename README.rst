@@ -38,10 +38,10 @@ How do I submit the code?
 
 #. Before we can accept your patches, you'll
    have to `agree to a contributor license agreement
-   <http://docs.openstack.org/infra/manual/developers.html#account-setup>`_.
+   <https://docs.openstack.org/infra/manual/developers.html#account-setup>`_.
 
 #. Learn about `how to use our Gerrit review system
-   <http://docs.openstack.org/infra/manual/developers.html#development-workflow>`_.
+   <https://docs.openstack.org/infra/manual/developers.html#development-workflow>`_.
 
 #. Get the code::
 
@@ -57,6 +57,6 @@ Useful links
 ------------
 
 * Free software: Apache license
-* Documentation: http://ironic-staging-drivers.rtfd.org
+* Documentation: http://ironic-staging-drivers.readthedocs.io/en/latest/
 * Source: http://git.openstack.org/cgit/openstack/ironic-staging-drivers
-* Bugs: http://bugs.launchpad.net/ironic-staging-drivers
+* Bugs: https://storyboard.openstack.org/#!/project/950
