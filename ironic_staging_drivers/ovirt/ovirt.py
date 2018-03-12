@@ -110,9 +110,9 @@ def _parse_driver_info(node):
         conf_value = conf_info.get(prop.replace('ovirt_', ''))
         value = node_value if node_value is not None else conf_value
         if value is None and prop not in ['ovirt_ca_file', 'ovirt_insecure']:
-            raise exception.MissingParameterValue(
-                _("%(prop)s is not set either in the configuration or"
-                    "in the node's driver_info"))
+            msg = _("%s is not set either in the configuration or"
+                    "in the node's driver_info") % prop
+            raise exception.MissingParameterValue(msg)
         else:
             driver_info[prop] = value
     insecure = driver_info['ovirt_insecure']
