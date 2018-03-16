@@ -1,0 +1,8 @@
+Code-Review+2: Dmitry Tantsur <divius.inside@gmail.com>
+Workflow+1: Dmitry Tantsur <divius.inside@gmail.com>
+Verified+2: Zuul
+Submitted-by: Zuul
+Submitted-at: Fri, 16 Mar 2018 11:06:31 +0000
+Reviewed-on: https://review.openstack.org/553185
+Project: openstack/ironic-staging-drivers
+Branch: refs/heads/master
