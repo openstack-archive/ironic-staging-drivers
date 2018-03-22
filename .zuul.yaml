@@ -19,6 +19,8 @@
     check:
       jobs:
         - ironic-staging-drivers-dsvm-all-drivers
+        - openstack-tox-lower-constraints
     gate:
       jobs:
         - ironic-staging-drivers-dsvm-all-drivers
+        - openstack-tox-lower-constraints
