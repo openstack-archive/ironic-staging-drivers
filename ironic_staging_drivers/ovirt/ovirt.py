@@ -132,6 +132,16 @@ def _getvm(driver_info):
     name = driver_info['ovirt_vm_name'].encode('ascii', 'ignore')
     url = "https://%s/ovirt-engine/api" % address
     try:
+        # Early versions of pycurl.Curl.setopt don't support unicode stings
+        # convert them to a acsii str
+        url = url.encode('ascii', 'strict')
+    except UnicodeEncodeError:
+        # url contains unicode characters that can't be converted, attempt to
+        # use it, if we have a version of pycurl that rejects it then a
+        # sdk.Error will be thrown below
+        pass
+
+    try:
         connection = sdk.Connection(url=url, username=username,
                                     password=password, insecure=insecure,
                                     ca_file=ca_file)
