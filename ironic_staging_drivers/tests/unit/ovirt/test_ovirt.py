@@ -58,6 +58,20 @@ class oVirtDriverTestCase(db_base.DbTestCase):
         self.assertEqual('changeme', params['ovirt_password'])
         self.assertEqual('jimi', params['ovirt_vm_name'])
 
+    @mock.patch.object(ovirt_power, "sdk", create=True)
+    def test_getvm_unicode(self, sdk):
+        self.node['driver_info']['ovirt_address'] = u'127.0.0.1'
+        driver_info = ovirt_power._parse_driver_info(self.node)
+
+        ovirt_power._getvm(driver_info)
+        ovirt_power.sdk.Connection.assert_called_with(
+            ca_file=None, insecure='False', password='changeme',
+            url='https://127.0.0.1/ovirt-engine/api',
+            username='jhendrix@internal'
+        )
+        url = ovirt_power.sdk.Connection.mock_calls[0][-1]['url']
+        self.assertEqual(type(''), type(url))
+
     def test_get_properties(self):
         expected = list(ovirt_power.PROPERTIES.keys())
         with task_manager.acquire(
