@@ -132,7 +132,7 @@ def _getvm(driver_info):
     name = driver_info['ovirt_vm_name'].encode('ascii', 'ignore')
     url = "https://%s/ovirt-engine/api" % address
     try:
-        connection = sdk.Connection(url=url, username=username,
+        connection = sdk.Connection(url=str(url), username=username,
                                     password=password, insecure=insecure,
                                     ca_file=ca_file)
         vms_service = connection.system_service().vms_service()
