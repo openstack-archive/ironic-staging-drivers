@@ -249,11 +249,14 @@ def set_policy(policy):
                        0x10 if policy['enable'] else 0x00))
     _append_to_command(cmd, _hex(policy['policy_id']))
     # 0x10 is policy add flag
-    _append_to_command(cmd, _hex(TRIGGERS[policy['policy_trigger']] |
-                       CPU_CORRECTION[policy['cpu_power_correction']]
-                       | STORAGE[policy['storage']] | 0x10))
-    _append_to_command(cmd, _hex(ACTIONS[policy['action']] |
-                       POWER_DOMAIN[policy['power_domain']]))
+    flags = TRIGGERS[policy['policy_trigger']]
+    flags |= STORAGE[policy['storage']]
+    flags |= 0x10
+    _append_to_command(cmd, _hex(flags))
+
+    flags = ACTIONS[policy['action']]
+    flags |= POWER_DOMAIN[policy['power_domain']]
+    _append_to_command(cmd, _hex(flags))
 
     if isinstance(policy['target_limit'], int):
         limit = policy['target_limit']
