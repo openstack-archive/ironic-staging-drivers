@@ -1,5 +1,6 @@
 # -*- encoding: utf-8 -*-
 #
+# Copyright 2017 Red Hat, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -20,7 +21,7 @@ from ironic.drivers import generic
 from ironic_staging_drivers.ovirt import ovirt
 
 
-class oVirtHardware(generic.GenericHardware):
+class OVirtHardware(generic.GenericHardware):
     """oVirt hardware type.
 
     Uses oVirt for power and management.
@@ -29,9 +30,9 @@ class oVirtHardware(generic.GenericHardware):
     @property
     def supported_management_interfaces(self):
         """List of supported management interfaces."""
-        return [ovirt.oVirtManagement]
+        return [ovirt.OVirtManagement]
 
     @property
     def supported_power_interfaces(self):
         """List of supported power interfaces."""
-        return [ovirt.oVirtPower]
+        return [ovirt.OVirtPower]

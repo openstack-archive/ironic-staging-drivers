@@ -39,5 +39,5 @@ class InvalidIPMITimestamp(exception.IronicException):
     pass
 
 
-class oVirtError(exception.IronicException):
+class OVirtError(exception.IronicException):
     message = _("oVirt call failed: %(err)s.")
