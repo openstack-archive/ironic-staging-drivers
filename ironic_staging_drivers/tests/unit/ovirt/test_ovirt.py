@@ -1,3 +1,4 @@
+# Copyright 2017 Red Hat, Inc.
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
 #    a copy of the License at
@@ -36,10 +37,10 @@ def _ovirt_info():
 
 
 @mock.patch.object(time, 'sleep', lambda *_: None)
-class oVirtDriverTestCase(db_base.DbTestCase):
+class OVirtDriverTestCase(db_base.DbTestCase):
 
     def setUp(self):
-        super(oVirtDriverTestCase, self).setUp()
+        super(OVirtDriverTestCase, self).setUp()
         self.config(enabled_power_interfaces='staging-ovirt',
                     enabled_management_interfaces='staging-ovirt')
         namespace = 'ironic.hardware.types'
@@ -66,7 +67,7 @@ class oVirtDriverTestCase(db_base.DbTestCase):
                                  if prop in expected]
             self.assertEqual(sorted(expected), sorted(driver_properties))
 
-    @mock.patch.object(ovirt_power.oVirtPower, 'set_power_state',
+    @mock.patch.object(ovirt_power.OVirtPower, 'set_power_state',
                        autospec=True, spec_set=True)
     def test_set_power_state_power_on(self, mock_power):
         with task_manager.acquire(self.context, self.node.uuid) as task:
@@ -74,7 +75,7 @@ class oVirtDriverTestCase(db_base.DbTestCase):
             mock_power.assert_called_once_with(task.driver.power, task,
                                                states.POWER_ON)
 
-    @mock.patch.object(ovirt_power.oVirtPower, 'set_power_state',
+    @mock.patch.object(ovirt_power.OVirtPower, 'set_power_state',
                        autospec=True, spec_set=True)
     def test_set_power_state_power_off(self, mock_power):
         with task_manager.acquire(self.context, self.node.uuid) as task:
@@ -96,14 +97,14 @@ class oVirtDriverTestCase(db_base.DbTestCase):
             self.assertEqual([boot_devices.CDROM, boot_devices.DISK,
                               boot_devices.PXE], bdevices)
 
-    @mock.patch.object(ovirt_power.oVirtManagement, 'get_boot_device',
+    @mock.patch.object(ovirt_power.OVirtManagement, 'get_boot_device',
                        return_value='hd')
     def test_get_boot_device(self, mock_management):
         with task_manager.acquire(self.context, self.node.uuid) as task:
             boot_dev = task.driver.management.get_boot_device(task)
             self.assertEqual('hd', boot_dev)
 
-    @mock.patch.object(ovirt_power.oVirtManagement, 'set_boot_device',
+    @mock.patch.object(ovirt_power.OVirtManagement, 'set_boot_device',
                        autospec=True, spec_set=True)
     def test_set_boot_device(self, mock_power):
         with task_manager.acquire(self.context, self.node.uuid) as task:

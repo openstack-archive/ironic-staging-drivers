@@ -1,3 +1,4 @@
+# Copyright 2017 Red Hat, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -140,15 +141,15 @@ def _getvm(driver_info):
     except sdk.Error as e:
         LOG.error("Could not fetch information about VM vm %(name)s, "
                   "got error: %(error)s", {'name': name, 'error': e})
-        raise staging_exception.oVirtError(err=e)
+        raise staging_exception.OVirtError(err=e)
     if vmsearch:
         return vms_service.vm_service(vmsearch[0].id)
     else:
-        raise staging_exception.oVirtError(_("VM with name "
+        raise staging_exception.OVirtError(_("VM with name "
                                              "%s was not found") % name)
 
 
-class oVirtPower(base.PowerInterface):
+class OVirtPower(base.PowerInterface):
 
     def get_properties(self):
         return PROPERTIES
@@ -216,7 +217,7 @@ class oVirtPower(base.PowerInterface):
         except sdk.Error as e:
             LOG.error("Could not change status of VM vm %(name)s "
                       "got error: %(error)s", {'name': vm_name, 'error': e})
-            raise staging_exception.oVirtError(err=e)
+            raise staging_exception.OVirtError(err=e)
 
     @task_manager.require_exclusive_lock
     def reboot(self, task, timeout=None):
@@ -238,10 +239,10 @@ class oVirtPower(base.PowerInterface):
         except sdk.Error as e:
             LOG.error("Could not restart VM vm %(name)s "
                       "got error: %(error)s", {'name': vm_name, 'error': e})
-            raise staging_exception.oVirtError(err=e)
+            raise staging_exception.OVirtError(err=e)
 
 
-class oVirtManagement(base.ManagementInterface):
+class OVirtManagement(base.ManagementInterface):
 
     def get_properties(self):
         return PROPERTIES
@@ -279,7 +280,7 @@ class oVirtManagement(base.ManagementInterface):
             missing in the node's driver_info.
         :raises: InvalidParameterValue, if some parameter(s) have invalid
             value(s) in the node's driver_info.
-        :raises: oVirtError, if error encountered from
+        :raises: OVirtError, if error encountered from
             oVirt operation.
         """
         driver_info = _parse_driver_info(task.node)
@@ -292,8 +293,8 @@ class oVirtManagement(base.ManagementInterface):
             msg = _("oVirt returned unknown boot device '%(device)s' "
                     "for node %(node)s")
             LOG.error(msg, {'device': boot_dev, 'node': task.node.uuid})
-            raise staging_exception.oVirtError(msg.format(device=boot_dev,
-                                               node=task.node.uuid))
+            raise staging_exception.OVirtError(msg.format(device=boot_dev,
+                                                          node=task.node.uuid))
 
         return {'boot_device': ironic_boot_dev, 'persistent': persistent}
 
@@ -325,7 +326,7 @@ class oVirtManagement(base.ManagementInterface):
             LOG.error("Setting boot device failed for node %(node_id)s "
                       "with error: %(error)s",
                       {'node_id': task.node.uuid, 'error': e})
-            raise staging_exception.oVirtError(err=e)
+            raise staging_exception.OVirtError(err=e)
 
     def get_sensors_data(self, task):
         """Get sensors data.
