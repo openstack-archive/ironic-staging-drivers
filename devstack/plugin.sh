@@ -68,6 +68,13 @@ function update_ironic_enabled_drivers {
 }
 
 function install_ironic_staging_drivers {
+    # FIXME(derekh) Copied from similar fix in
+    # networking-generic-switch/devstack/plugin.sh
+    # See: Change-Id: I70f50584a7552e294681375e42879f68750f5096
+    # we need to ensure pep8 is present before proceeding, as it
+    # is required to install ironic-staging-drivers. For some unknown reason
+    # its getting removed before this point.
+    sudo -H pip install -I --force-reinstall pep8
     setup_develop $IRONIC_STAGING_DRIVERS_DIR
 }
 
