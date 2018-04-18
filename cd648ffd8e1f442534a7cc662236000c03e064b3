@@ -1,0 +1,12 @@
+Code-Review+1: Cyril Lopez <cylopez@redhat.com>
+Code-Review+1: Bob Fournier <bfournie@redhat.com>
+Code-Review+2: Pavlo Shchelokovskyy <pshchelokovskyy@mirantis.com>
+Code-Review+1: Julia Kreger <juliaashleykreger@gmail.com>
+Code-Review+2: Vladyslav Drok <vdrok@mirantis.com>
+Workflow+1: Vladyslav Drok <vdrok@mirantis.com>
+Verified+2: Zuul
+Submitted-by: Zuul
+Submitted-at: Wed, 18 Apr 2018 16:19:35 +0000
+Reviewed-on: https://review.openstack.org/548943
+Project: openstack/ironic-staging-drivers
+Branch: refs/heads/master
