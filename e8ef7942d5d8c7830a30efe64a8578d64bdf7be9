@@ -1,0 +1,10 @@
+Code-Review+1: Bob Fournier <bfournie@redhat.com>
+Code-Review+2: Vladyslav Drok <vdrok@mirantis.com>
+Code-Review+2: Pavlo Shchelokovskyy <pshchelokovskyy@mirantis.com>
+Workflow+1: Pavlo Shchelokovskyy <pshchelokovskyy@mirantis.com>
+Verified+2: Zuul
+Submitted-by: Zuul
+Submitted-at: Thu, 19 Apr 2018 08:11:23 +0000
+Reviewed-on: https://review.openstack.org/561919
+Project: openstack/ironic-staging-drivers
+Branch: refs/heads/stable/queens
