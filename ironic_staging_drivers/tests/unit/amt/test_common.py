@@ -19,8 +19,6 @@ import time
 from ironic.common import exception as ironic_exception
 from ironic.common import utils
 from ironic.tests import base
-from ironic.tests.unit.db import base as db_base
-from ironic.tests.unit.objects import utils as obj_utils
 import mock
 from oslo_concurrency import processutils
 from oslo_config import cfg
@@ -32,17 +30,11 @@ from ironic_staging_drivers.tests.unit.amt import pywsman_mocks_specs \
     as mock_specs
 from ironic_staging_drivers.tests.unit.amt import utils as test_utils
 
-INFO_DICT = test_utils.get_test_amt_info()
 CONF = cfg.CONF
+INFO_DICT = test_utils.get_test_amt_info()
 
 
-class AMTCommonMethodsTestCase(db_base.DbTestCase):
-
-    def setUp(self):
-        super(AMTCommonMethodsTestCase, self).setUp()
-        self.node = obj_utils.create_test_node(self.context,
-                                               driver='fake_amt_fake',
-                                               driver_info=INFO_DICT)
+class AMTCommonMethodsTestCase(test_utils.BaseAMTTest):
 
     def test_parse_driver_info(self):
         info = amt_common.parse_driver_info(self.node)
@@ -176,14 +168,10 @@ class AMTCommonClientTestCase(base.TestCase):
         mock_pywsman.invoke.assert_called_once_with(options, namespace, method)
 
 
-class AwakeAMTInterfaceTestCase(db_base.DbTestCase):
+class AwakeAMTInterfaceTestCase(test_utils.BaseAMTTest):
     def setUp(self):
         super(AwakeAMTInterfaceTestCase, self).setUp()
         amt_common.AMT_AWAKE_CACHE = {}
-        self.info = INFO_DICT
-        self.node = obj_utils.create_test_node(self.context,
-                                               driver='fake_amt',
-                                               driver_info=self.info)
 
     @mock.patch.object(utils, 'execute', spec_set=True, autospec=True)
     def test_awake_amt_interface(self, mock_ex):

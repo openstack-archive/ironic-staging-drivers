@@ -46,6 +46,7 @@
           export DEVSTACK_GATE_IRONIC=1
           export DEVSTACK_GATE_NEUTRON=1
           export DEVSTACK_GATE_VIRT_DRIVER=ironic
+          export DEVSTACK_GATE_IRONIC_DRIVER=ipmi
           export BRANCH_OVERRIDE=default
           export PROJECTS="openstack/ironic $PROJECTS"
           export PROJECTS="openstack/ironic-staging-drivers $PROJECTS"

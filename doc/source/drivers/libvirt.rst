@@ -37,37 +37,21 @@ Setting up the environment
      in your system
      (on DevStack, those are already installed when nova-compute is enabled).
 
-#. Add desired driver(s) to the list of ``enabled_drivers`` in ironic.conf
-   (see `Available drivers and options`_)
-   and restart ironic-conductor service.
+#. Add ``staging-libvirt`` to the list of ``enabled_hardware_types``
+   in ironic.conf, configure the power and management interfaces, for example::
+
+    [DEFAULT]
+    enabled_hardware_types = staging-libvirt
+    enabled_management_interfaces = staging-libvirt
+    enabled_power_interfaces = staging-libvirt
+
+   Then restart the ironic-conductor service.
 #. Create or update existing virtual baremetal nodes to use one of
    libvirt-based drivers enabled in the previous step.
 #. Update node properties with driver-specific fields if needed.
    (see `Node driver_info`_).
    Default values are suitable for single-node DevStack.
 #. Deploy the node.
-
-Available drivers and options
-=============================
-
-Several drivers are provided by Ironic-staging drivers
-
-pxe_libvirt_agent
-    Uses PXE to Boot interface, Libvirt for Power/Management and Agent deploy
-
-pxe_libvirt_iscsi
-    Uses PXE to Boot interface, Libvirt for Power/Management and ISCSI deploy
-
-fake_libvirt_fake
-    This driver is used for testing of Libvirt Power/Management driver
-    interfaces themselves.
-
-As for all Ironic drivers, you can easily create your own collection of driver
-interfaces to suit your needs and register that as Ironic driver.
-
-Config
-------
-These driver interfaces have no specific options in Ironic configuration file.
 
 Node driver_info
 ----------------

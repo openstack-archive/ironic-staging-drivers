@@ -65,8 +65,12 @@ class IntelNMPassthruTestCase(db_base.DbTestCase):
 
     def setUp(self):
         super(IntelNMPassthruTestCase, self).setUp()
-        self.config(enabled_drivers=['fake_nm'])
-        self.node = obj_utils.create_test_node(self.context, driver='fake_nm')
+        self.config(enabled_hardware_types=['staging-nm'],
+                    enabled_vendor_interfaces=['staging-nm'],
+                    enabled_power_interfaces=['ipmitool'],
+                    enabled_management_interfaces=['ipmitool'])
+        self.node = obj_utils.create_test_node(self.context,
+                                               driver='staging-nm')
         self.temp_filename = os.path.join(CONF.tempdir, self.node.uuid +
                                           '.sdr')
 

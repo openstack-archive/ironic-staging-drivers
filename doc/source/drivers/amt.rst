@@ -14,13 +14,8 @@ AMT drivers use WS-MAN protocol to interact with AMT clients.
 They work on AMT 7.0/8.0/9.0. AMT 7.0 was released in 2010, so AMT drivers
 should work on most PCs with vPro.
 
-There are two AMT drivers:
-
-* ``pxe_amt_iscsi`` uses AMT for power management and deploys the user image
-  over iSCSI from the conductor.
-
-* ``pxe_amt_agent`` uses AMT for power management and deploys the user image
-  directly to the node via HTTP.
+The ``staging-amt`` hardware type uses AMT for power and boot device
+management.
 
 Set up your environment
 =======================
@@ -63,10 +58,16 @@ A short guide follows below:
 
   * Or build it yourself from: https://github.com/Openwsman/openwsman
 
-* Enable the ``pxe_amt_iscsi`` or ``pxe_amt_agent`` driver by adding it to the
-  configuration option ``enabled_drivers`` (typically located at
-  ``/etc/ironic/ironic.conf``) and restart the ``ironic-conductor``
-  process::
+* Enable the ``staging-amt`` hardware type, power, deploy and management
+  interfaces, for example::
+
+    [DEFAULT]
+    enabled_hardware_types = staging-amt,ipmi
+    enabled_deploy_interfaces = staging-amt,iscsi,direct
+    enabled_management_interfaces = staging-amt,ipmitool
+    enabled_power_interfaces = staging-amt,ipmitool
+
+  and restart the ``ironic-conductor`` process::
 
     service ironic-conductor restart
 

@@ -9,48 +9,39 @@ Overview
 The iBoot power driver enables you to take advantage of power cycle
 management of nodes using Dataprobe iBoot devices over the DxP protocol.
 
-Drivers
-=======
-
-There are two iboot drivers:
-
-* The ``pxe_iboot_iscsi`` driver uses iBoot to control the power state of the
-  node, PXE/iPXE technology for booting and the iSCSI methodology for
-  deploying the node.
-
-* The ``pxe_iboot_agent`` driver uses iBoot to control the power state of the
-  node, PXE/iPXE technology for booting and the Ironic Python Agent for
-  deploying an image to the node.
+The ``staging-iboot`` hardware type uses iBoot to manage power of the nodes.
 
 Requirements
-~~~~~~~~~~~~
+------------
 
 * ``python-iboot`` library should be installed - https://github.com/darkip/python-iboot
 
 Tested platforms
-~~~~~~~~~~~~~~~~
+----------------
 
-* iBoot-G2
+* iBoot-G2 [1]_
 
-Configuring and enabling the driver
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Configuring and enabling
+------------------------
 
-1. Add ``pxe_iboot_iscsi`` and/or ``pxe_iboot_agent`` to the list of
-   ``enabled_drivers`` in */etc/ironic/ironic.conf*. For example::
+1. Add ``staging-iboot`` to ``enabled_hardware_types`` and
+   ``enabled_power_interfaces`` in */etc/ironic/ironic.conf*. Also enable
+   the ``fake`` management interface. For example::
 
     [DEFAULT]
-    ...
-    enabled_drivers = pxe_iboot_iscsi,pxe_iboot_agent
+    enabled_hardware_types = staging-iboot,ipmi
+    enabled_management_interfaces = fake,ipmitool
+    enabled_power_interfaces = staging-iboot,ipmitool
 
 2. Restart the Ironic conductor service::
 
     service ironic-conductor restart
 
-Registering a node with the iBoot driver
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Registering a node
+------------------
 
 Nodes configured for the iBoot driver should have the ``driver`` property
-set to ``pxe_iboot_iscsi`` or ``pxe_iboot_agent``.
+set to ``staging-iboot``.
 
 The following configuration values are also required in ``driver_info``:
 
@@ -69,7 +60,10 @@ the iBoot driver.
 
 1. Create node::
 
-    ironic node-create -d pxe_iboot_iscsi -i iboot_username=<username> -i iboot_password=<password> -i iboot_address=<address>
+    openstack baremetal node create --driver staging-iboot \
+        --driver-info iboot_username=<username> \
+        --driver-info iboot_password=<password> \
+        --driver-info iboot_address=<address>
 
 References
 ==========

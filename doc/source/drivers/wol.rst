@@ -26,43 +26,32 @@ the Ironic database. Any calls to the API to get the power state of the
 node will return the value from the Ironic's database.
 
 
-Drivers
-=======
-
-pxe_wol_iscsi
-^^^^^^^^^^^^^
-
-Overview
-~~~~~~~~
-
-The ``pxe_wol_iscsi`` driver uses the Wake-On-Lan technology to control the
-power state, PXE/iPXE technology for booting and the iSCSI methodology
-for deploying the node.
-
 Requirements
-~~~~~~~~~~~~
+============
 
 * Wake-On-Lan should be enabled in the BIOS
 
-Configuring and Enabling the driver
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Configuring and Enabling
+========================
 
-1. Add ``pxe_wol_iscsi`` to the list of ``enabled_drivers`` in
-   */etc/ironic/ironic.conf*. For example::
+1. Add ``staging-wol`` to the list of ``enabled_hardware_types`` in
+   */etc/ironic/ironic.conf*. Also enable the ``staging-wol`` power
+   interface and the ``fake`` management interface. For example::
 
     [DEFAULT]
-    ...
-    enabled_drivers = pxe_ipmitool,pxe_wol_iscsi
+    enabled_hardware_types = staging-wol,ipmi
+    enabled_management_interfaces = fake,ipmi
+    enabled_power_interfaces = staging-wol,ipmitool
 
 2. Restart the Ironic conductor service::
 
     service ironic-conductor restart
 
-Registering a node with the Wake-On-Lan driver
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Registering a node
+==================
 
 Nodes configured for Wake-On-Lan driver should have the ``driver``
-property set to ``pxe_wol_iscsi``.
+property set to ``staging-wol``.
 
 The node should have at least one port registered with it because the
 Wake-On-Lan driver will use the MAC address of the ports to create the
@@ -86,26 +75,16 @@ the Wake-On-Lan driver.
 
 1. Create node::
 
-    ironic node-create -d pxe_wol_iscsi [-i wol_host=<broadcast ip> [ -i
-    wol_port=<destination port>]]
+    openstack baremetal node create --driver staging-wol \
+        --driver-info wol_host=<broadcast ip> \
+        --driver-info wol_port=<destination port>
 
 The above command ``ironic node-create`` will return UUID of the node,
 which is the value of *$NODE* in the following command.
 
 2. Associate port with the node created::
 
-    ironic port-create -n $NODE -a <MAC address>
-
-
-pxe_wol_agent
-^^^^^^^^^^^^^
-
-Overview
-~~~~~~~~
-
-The ``pxe_wol_agent`` driver uses the Wake-On-Lan technology to control
-the power state, PXE/iPXE technology for booting and the Ironic Python
-Agent for deploying the node.
+    openstack baremetal port create --node $NODE <MAC address>
 
 Additional requirements
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -118,12 +97,9 @@ Additional requirements
 
 * Node should be powered off before start of deploy
 
-Configuration steps are the same as for ``pxe_wol_iscsi`` driver, replace
-"pxe_wol_iscsi" with "pxe_wol_agent".
-
 
 References
 ==========
 .. [1] Wake-On-Lan - https://en.wikipedia.org/wiki/Wake-on-LAN
 .. [2] Magic packet - https://en.wikipedia.org/wiki/Wake-on-LAN#Sending_the_magic_packet
-.. [3] Ironic node cleaning - http://docs.openstack.org/developer/ironic/deploy/cleaning.html
+.. [3] Ironic node cleaning - https://docs.openstack.org/ironic/latest/admin/cleaning.html

@@ -18,18 +18,8 @@ boot time. Each policy identified by ``policy_id`` (integer number from 0 to
 255). Maximum numbers of policies which can be set at the same time limited by
 platform. For more detailed information see full specification [1]_.
 
-Available drivers
-=================
-
-Driver provided by ironic-staging-drivers are
-
-``agent_ipmitool_nm``
-    Standard Ironic's ``agent_ipmitool`` driver with Intel NodeManager
-    as vendor extension
-
-``fake_nm``
-    Used for testing of this vendor passthru extension.
-
+The ``staging-nm`` hardware types extends the ``ipmi`` hardware type with
+support for the ``staging-nm`` vendor interface.
 
 Supported vendor passthru methods
 =================================

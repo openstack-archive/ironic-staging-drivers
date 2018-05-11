@@ -14,79 +14,10 @@
 #    under the License.
 
 
-from ironic.common import exception as ironic_exception
-from ironic.common.i18n import _
-from ironic.drivers import base
 from ironic.drivers import generic
-from ironic.drivers.modules import agent
 from ironic.drivers.modules import fake
-from ironic.drivers.modules import iscsi_deploy
-from ironic.drivers.modules import pxe
-from oslo_log import log as logging
-from oslo_utils import importutils
 
 from ironic_staging_drivers.iboot import power as iboot_power
-
-LOG = logging.getLogger(__name__)
-
-
-class FakeIBootFakeDriver(base.BaseDriver):
-    """Fake iBoot driver."""
-
-    def __init__(self):
-        if not importutils.try_import('iboot'):
-            raise ironic_exception.DriverLoadError(
-                driver=self.__class__.__name__,
-                reason=_("Unable to import iboot library"))
-        self.boot = fake.FakeBoot()
-        self.power = iboot_power.IBootPower()
-        self.deploy = fake.FakeDeploy()
-
-
-class PXEIBootISCSIDriver(base.BaseDriver):
-    """PXE + IBoot PDU driver + iSCSI driver.
-
-    This driver implements the `core` functionality, combining
-    :class:`ironic.drivers.modules.pxe.PXEBoot` for boot and
-    :class:`ironic_staging_drivers.iboot.power.IBootPower` for power
-    and :class:`ironic.drivers.modules.iscsi_deploy.ISCSIDeploy` for
-    image deployment. Implementations are in those respective classes;
-    this class is merely the glue between them.
-    """
-    def __init__(self):
-        LOG.warning("This driver is deprecated and will be removed "
-                    "in the Rocky release. "
-                    "Use 'staging-iboot' hardware type instead.")
-        if not importutils.try_import('iboot'):
-            raise ironic_exception.DriverLoadError(
-                driver=self.__class__.__name__,
-                reason=_("Unable to import iboot library"))
-        self.power = iboot_power.IBootPower()
-        self.boot = pxe.PXEBoot()
-        self.deploy = iscsi_deploy.ISCSIDeploy()
-
-
-class PXEIBootAgentDriver(base.BaseDriver):
-    """PXE + IBoot PDU driver + Agent driver.
-
-    This driver implements the `core` functionality, combining
-    :class:`ironic.drivers.modules.pxe.PXEBoot` for boot and
-    :class:`ironic_staging_drivers.iboot.power.IBootPower` for power
-    and :class:'ironic.driver.modules.agent.AgentDeploy' for image
-    deployment. Implementations are in those respective classes;
-    this class is merely the glue between them.
-    """
-    def __init__(self):
-        LOG.warning("This driver is deprecated and will be removed "
-                    "in the Rocky release. "
-                    "Use 'staging-iboot' hardware type instead.")
-        if not importutils.try_import('iboot'):
-            raise ironic_exception.DriverLoadError(
-                driver=self.__class__.__name__,
-                reason=_("Unable to import iboot library"))
-        self.power = iboot_power.IBootPower()
-        self.boot = pxe.PXEBoot()
-        self.deploy = agent.AgentDeploy()
 
 
 class IBootHardware(generic.GenericHardware):
