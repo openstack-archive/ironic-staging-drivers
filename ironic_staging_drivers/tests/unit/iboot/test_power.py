@@ -19,10 +19,10 @@ import types
 
 import mock
 
-from ironic.common import driver_factory
 from ironic.common import exception as ironic_exception
 from ironic.common import states
 from ironic.conductor import task_manager
+from ironic.drivers.modules import fake
 from ironic.tests.unit.db import base as db_base
 from ironic.tests.unit.objects import utils as obj_utils
 
@@ -261,11 +261,11 @@ class IBootDriverTestCase(db_base.DbTestCase):
         self.config(max_retry=0, group='iboot')
         self.config(retry_interval=0, group='iboot')
         self.config(reboot_delay=0, group='iboot')
-        self.config(enabled_drivers=['fake_iboot_fake'])
-        self.driver = driver_factory.get_driver('fake_iboot_fake')
+        self.config(enabled_hardware_types=['staging-iboot'],
+                    enabled_power_interfaces=['staging-iboot'])
         self.node = obj_utils.create_test_node(
             self.context,
-            driver='fake_iboot_fake',
+            driver='staging-iboot',
             driver_info=INFO_DICT)
         self.info = iboot_power._parse_driver_info(self.node)
 
@@ -273,6 +273,9 @@ class IBootDriverTestCase(db_base.DbTestCase):
         expected = iboot_power.COMMON_PROPERTIES
         with task_manager.acquire(
                 self.context, self.node.uuid, shared=True) as task:
+            # Remove properties from the boot and deploy interfaces
+            task.driver.boot = fake.FakeBoot()
+            task.driver.deploy = fake.FakeDeploy()
             self.assertEqual(expected, task.driver.get_properties())
 
     @mock.patch.object(iboot_power.LOG, 'warning')

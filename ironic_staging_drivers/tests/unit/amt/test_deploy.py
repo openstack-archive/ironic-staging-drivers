@@ -17,23 +17,15 @@ from ironic.common import boot_devices
 from ironic.common import states
 from ironic.conductor import task_manager
 from ironic.drivers.modules import iscsi_deploy
-from ironic.tests.unit.db import base as db_base
-from ironic.tests.unit.objects import utils as obj_utils
 import mock
 
 from ironic_staging_drivers.amt import management as amt_mgmt
 from ironic_staging_drivers.tests.unit.amt import utils as test_utils
 
-INFO_DICT = test_utils.get_test_amt_info()
 
+class AMTISCSIDeployTestCase(test_utils.BaseAMTTest):
 
-class AMTISCSIDeployTestCase(db_base.DbTestCase):
-
-    def setUp(self):
-        super(AMTISCSIDeployTestCase, self).setUp()
-        self.config(enabled_drivers=["pxe_amt_iscsi"])
-        self.node = obj_utils.create_test_node(
-            self.context, driver='pxe_amt_iscsi', driver_info=INFO_DICT)
+    deploy_interface = 'staging-amt'
 
     @mock.patch.object(amt_mgmt.AMTManagement, 'ensure_next_boot_device',
                        spec_set=True, autospec=True)

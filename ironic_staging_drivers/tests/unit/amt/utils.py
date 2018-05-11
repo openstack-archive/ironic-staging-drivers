@@ -15,6 +15,8 @@
 
 from xml.etree import ElementTree
 
+from ironic.tests.unit.db import base as db_base
+from ironic.tests.unit.objects import utils as obj_utils
 import mock
 
 
@@ -77,3 +79,21 @@ def mock_wsman_root(return_value):
     mock_xml.root.return_value = mock_xml_root
 
     return mock_xml
+
+
+class BaseAMTTest(db_base.DbTestCase):
+
+    deploy_interface = None
+
+    def setUp(self):
+        super(BaseAMTTest, self).setUp()
+        self.config(enabled_hardware_types=['staging-amt'],
+                    enabled_power_interfaces=['staging-amt'],
+                    enabled_management_interfaces=['staging-amt'],
+                    enabled_deploy_interfaces=['staging-amt', 'direct'])
+        self.info = get_test_amt_info()
+        self.node = obj_utils.create_test_node(
+            self.context,
+            driver='staging-amt',
+            driver_info=self.info,
+            deploy_interface=self.deploy_interface)

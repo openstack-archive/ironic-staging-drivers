@@ -21,7 +21,6 @@ import tempfile
 import mock
 
 from ironic.common import boot_devices
-from ironic.common import driver_factory
 from ironic.common import exception
 from ironic.common import states
 from ironic.conductor import task_manager
@@ -107,7 +106,15 @@ class FakeConnection(object):
         return [FakeLibvirtDomain()]
 
 
-class LibvirtValidateParametersTestCase(db_base.DbTestCase):
+class BaseLibvirtTest(db_base.DbTestCase):
+    def setUp(self):
+        super(BaseLibvirtTest, self).setUp()
+        self.config(enabled_hardware_types=['staging-libvirt'],
+                    enabled_power_interfaces=['staging-libvirt'],
+                    enabled_management_interfaces=['staging-libvirt'])
+
+
+class LibvirtValidateParametersTestCase(BaseLibvirtTest):
 
     def test__parse_driver_info_good_ssh_key(self):
         d_info = _get_test_libvirt_driver_info('ssh_key')
@@ -116,7 +123,7 @@ class LibvirtValidateParametersTestCase(db_base.DbTestCase):
             d_info['ssh_key_filename'] = key_path
             node = obj_utils.get_test_node(
                 self.context,
-                driver='fake_libvirt_fake',
+                driver='staging-libvirt',
                 driver_info=d_info)
 
             info = power._parse_driver_info(node)
@@ -128,7 +135,7 @@ class LibvirtValidateParametersTestCase(db_base.DbTestCase):
     def test__parse_driver_info_no_ssh_key(self):
         node = obj_utils.get_test_node(
             self.context,
-            driver='fake_libvirt_fake',
+            driver='staging-libvirt',
             driver_info=_get_test_libvirt_driver_info('ssh_key'))
 
         self.assertRaises(exception.InvalidParameterValue,
@@ -138,7 +145,7 @@ class LibvirtValidateParametersTestCase(db_base.DbTestCase):
     def test__parse_driver_info_good_sasl_cred(self):
         node = obj_utils.get_test_node(
             self.context,
-            driver='fake_libvirt_fake',
+            driver='staging-libvirt',
             driver_info=_get_test_libvirt_driver_info('sasl'))
 
         info = power._parse_driver_info(node)
@@ -152,7 +159,7 @@ class LibvirtValidateParametersTestCase(db_base.DbTestCase):
     def test__parse_driver_info_sasl_and_ssh_key(self):
         node = obj_utils.get_test_node(
             self.context,
-            driver='fake_libvirt_fake',
+            driver='staging-libvirt',
             driver_info=_get_test_libvirt_driver_info('ssh_sasl'))
 
         self.assertRaises(exception.InvalidParameterValue,
@@ -160,13 +167,13 @@ class LibvirtValidateParametersTestCase(db_base.DbTestCase):
                           node)
 
 
-class LibvirtPrivateMethodsTestCase(db_base.DbTestCase):
+class LibvirtPrivateMethodsTestCase(BaseLibvirtTest):
 
     @mock.patch.object(power.libvirt, 'openAuth', autospec=True)
     def test__get_libvirt_connection_sasl_auth(self, libvirt_open_mock):
         node = obj_utils.get_test_node(
             self.context,
-            driver='fake_libvirt_fake',
+            driver='staging-libvirt',
             driver_info=_get_test_libvirt_driver_info('sasl'))
         power._get_libvirt_connection(node['driver_info'])
 
@@ -181,7 +188,7 @@ class LibvirtPrivateMethodsTestCase(db_base.DbTestCase):
     def test__get_libvirt_connection_ssh(self, libvirt_open_mock):
         node = obj_utils.get_test_node(
             self.context,
-            driver='fake_libvirt_fake',
+            driver='staging-libvirt',
             driver_info=_get_test_libvirt_driver_info('ssh_key'))
         power._get_libvirt_connection(node['driver_info'])
 
@@ -192,7 +199,7 @@ class LibvirtPrivateMethodsTestCase(db_base.DbTestCase):
     def test__get_libvirt_connection_socket(self, libvirt_open_mock):
         node = obj_utils.get_test_node(
             self.context,
-            driver='fake_libvirt_fake',
+            driver='staging-libvirt',
             driver_info=_get_test_libvirt_driver_info('socket'))
         power._get_libvirt_connection(node['driver_info'])
 
@@ -204,7 +211,7 @@ class LibvirtPrivateMethodsTestCase(db_base.DbTestCase):
     def test__get_libvirt_connection_error_conn(self, libvirt_open_mock):
         node = obj_utils.get_test_node(
             self.context,
-            driver='fake_libvirt_fake',
+            driver='staging-libvirt',
             driver_info=_get_test_libvirt_driver_info('socket'))
         self.assertRaises(isd_exc.LibvirtError,
                           power._get_libvirt_connection,
@@ -215,7 +222,7 @@ class LibvirtPrivateMethodsTestCase(db_base.DbTestCase):
     def test__get_libvirt_connection_error_none_conn(self, libvirt_open_mock):
         node = obj_utils.get_test_node(
             self.context,
-            driver='fake_libvirt_fake',
+            driver='staging-libvirt',
             driver_info=_get_test_libvirt_driver_info('socket'))
         self.assertRaises(isd_exc.LibvirtError,
                           power._get_libvirt_connection,
@@ -224,11 +231,10 @@ class LibvirtPrivateMethodsTestCase(db_base.DbTestCase):
     @mock.patch.object(power, '_get_libvirt_connection',
                        return_value=FakeConnection())
     def test__get_domain_by_macs(self, libvirt_conn_mock):
-        self.config(enabled_drivers=["fake_libvirt_fake"])
-        driver_factory.get_driver("fake_libvirt_fake")
+        self.config(enabled_drivers=["staging-libvirt"])
         node = obj_utils.create_test_node(
             self.context,
-            driver='fake_libvirt_fake',
+            driver='staging-libvirt',
             driver_info=_get_test_libvirt_driver_info('socket'))
         obj_utils.create_test_port(self.context,
                                    node_id=node.id,
@@ -243,11 +249,10 @@ class LibvirtPrivateMethodsTestCase(db_base.DbTestCase):
     @mock.patch.object(power, '_get_libvirt_connection',
                        return_value=FakeConnection())
     def test__get_domain_by_macs_not_found(self, libvirt_conn_mock):
-        self.config(enabled_drivers=["fake_libvirt_fake"])
-        driver_factory.get_driver("fake_libvirt_fake")
+        self.config(enabled_drivers=["staging-libvirt"])
         node = obj_utils.create_test_node(
             self.context,
-            driver='fake_libvirt_fake',
+            driver='staging-libvirt',
             driver_info=_get_test_libvirt_driver_info('socket'))
         obj_utils.create_test_port(self.context,
                                    node_id=node.id,
@@ -427,15 +432,13 @@ class LibvirtPrivateMethodsTestCase(db_base.DbTestCase):
                           power._BOOT_DEVICES_MAP[boot_devices.DISK])
 
 
-class LibvirtPowerTestCase(db_base.DbTestCase):
+class LibvirtPowerTestCase(BaseLibvirtTest):
 
     def setUp(self):
         super(LibvirtPowerTestCase, self).setUp()
-        self.config(enabled_drivers=["fake_libvirt_fake"])
-        driver_factory.get_driver("fake_libvirt_fake")
         self.node = obj_utils.create_test_node(
             self.context,
-            driver='fake_libvirt_fake',
+            driver='staging-libvirt',
             driver_info=_get_test_libvirt_driver_info('sasl'))
         obj_utils.create_test_port(self.context,
                                    node_id=self.node.id,
@@ -561,15 +564,13 @@ class LibvirtPowerTestCase(db_base.DbTestCase):
             get_domain_mock.assert_called_once_with(task)
 
 
-class LibvirtManagementTestCase(db_base.DbTestCase):
+class LibvirtManagementTestCase(BaseLibvirtTest):
 
     def setUp(self):
         super(LibvirtManagementTestCase, self).setUp()
-        self.config(enabled_drivers=["fake_libvirt_fake"])
-        driver_factory.get_driver("fake_libvirt_fake")
         self.node = obj_utils.create_test_node(
             self.context,
-            driver='fake_libvirt_fake',
+            driver='staging-libvirt',
             driver_info=_get_test_libvirt_driver_info('sasl'))
         obj_utils.create_test_port(self.context,
                                    node_id=self.node.id,

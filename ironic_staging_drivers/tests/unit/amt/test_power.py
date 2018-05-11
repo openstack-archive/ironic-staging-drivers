@@ -19,8 +19,6 @@ from ironic.common import boot_devices
 from ironic.common import exception as ironic_exception
 from ironic.common import states
 from ironic.conductor import task_manager
-from ironic.tests.unit.db import base as db_base
-from ironic.tests.unit.objects import utils as obj_utils
 import mock
 from oslo_config import cfg
 
@@ -32,19 +30,13 @@ from ironic_staging_drivers.amt import resource_uris
 from ironic_staging_drivers.common import exception
 from ironic_staging_drivers.tests.unit.amt import utils as test_utils
 
-INFO_DICT = test_utils.get_test_amt_info()
 CONF = cfg.CONF
 
 
-class AMTPowerInteralMethodsTestCase(db_base.DbTestCase):
+class AMTPowerInteralMethodsTestCase(test_utils.BaseAMTTest):
 
     def setUp(self):
         super(AMTPowerInteralMethodsTestCase, self).setUp()
-        self.config(enabled_drivers=['fake_amt_fake'])
-        self.info = INFO_DICT
-        self.node = obj_utils.create_test_node(self.context,
-                                               driver='fake_amt_fake',
-                                               driver_info=self.info)
         CONF.set_override('max_attempts', 2, 'amt_driver')
         CONF.set_override('action_wait', 0, 'amt_driver')
 
@@ -216,15 +208,7 @@ class AMTPowerInteralMethodsTestCase(db_base.DbTestCase):
             mock_ps.assert_called_with(task.node)
 
 
-class AMTPowerTestCase(db_base.DbTestCase):
-
-    def setUp(self):
-        super(AMTPowerTestCase, self).setUp()
-        self.config(enabled_drivers=['fake_amt_fake'])
-        self.info = INFO_DICT
-        self.node = obj_utils.create_test_node(self.context,
-                                               driver='fake_amt_fake',
-                                               driver_info=self.info)
+class AMTPowerTestCase(test_utils.BaseAMTTest):
 
     def test_get_properties(self):
         expected = amt_common.COMMON_PROPERTIES

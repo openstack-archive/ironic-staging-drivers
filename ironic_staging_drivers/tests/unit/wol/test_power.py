@@ -18,10 +18,10 @@
 import socket
 import time
 
-from ironic.common import driver_factory
 from ironic.common import exception as ironic_exception
 from ironic.common import states
 from ironic.conductor import task_manager
+from ironic.drivers.modules import fake
 from ironic.tests.unit.db import base as db_base
 from ironic.tests.unit.objects import utils as obj_utils
 import mock
@@ -36,10 +36,10 @@ class WakeOnLanPrivateMethodTestCase(db_base.DbTestCase):
 
     def setUp(self):
         super(WakeOnLanPrivateMethodTestCase, self).setUp()
-        self.config(enabled_drivers=['fake_wol_fake'])
-        self.driver = driver_factory.get_driver('fake_wol_fake')
+        self.config(enabled_hardware_types=['staging-wol'],
+                    enabled_power_interfaces=['fake', 'staging-wol'])
         self.node = obj_utils.create_test_node(self.context,
-                                               driver='fake_wol_fake')
+                                               driver='staging-wol')
         self.port = obj_utils.create_test_port(self.context,
                                                node_id=self.node.id)
 
@@ -63,7 +63,7 @@ class WakeOnLanPrivateMethodTestCase(db_base.DbTestCase):
         node = obj_utils.create_test_node(
             self.context,
             uuid=uuidutils.generate_uuid(),
-            driver='fake_wol_fake')
+            driver='staging-wol')
         with task_manager.acquire(
                 self.context, node.uuid, shared=True) as task:
             self.assertRaises(ironic_exception.InvalidParameterValue,
@@ -130,10 +130,10 @@ class WakeOnLanDriverTestCase(db_base.DbTestCase):
 
     def setUp(self):
         super(WakeOnLanDriverTestCase, self).setUp()
-        self.config(enabled_drivers=['fake_wol_fake'])
-        self.driver = driver_factory.get_driver('fake_wol_fake')
+        self.config(enabled_hardware_types=['staging-wol'],
+                    enabled_power_interfaces=['fake', 'staging-wol'])
         self.node = obj_utils.create_test_node(self.context,
-                                               driver='fake_wol_fake')
+                                               driver='staging-wol')
         self.port = obj_utils.create_test_port(self.context,
                                                node_id=self.node.id)
 
@@ -141,6 +141,9 @@ class WakeOnLanDriverTestCase(db_base.DbTestCase):
         expected = wol_power.COMMON_PROPERTIES
         with task_manager.acquire(
                 self.context, self.node.uuid, shared=True) as task:
+            # Remove properties from the boot and deploy interfaces
+            task.driver.boot = fake.FakeBoot()
+            task.driver.deploy = fake.FakeDeploy()
             self.assertEqual(expected, task.driver.get_properties())
 
     def test_get_power_state(self):

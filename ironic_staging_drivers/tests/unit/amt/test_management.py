@@ -18,8 +18,6 @@ Test class for AMT ManagementInterface
 from ironic.common import boot_devices
 from ironic.common import exception as ironic_exception
 from ironic.conductor import task_manager
-from ironic.tests.unit.db import base as db_base
-from ironic.tests.unit.objects import utils as obj_utils
 import mock
 from oslo_config import cfg
 
@@ -31,19 +29,11 @@ from ironic_staging_drivers.tests.unit.amt import pywsman_mocks_specs \
     as mock_specs
 from ironic_staging_drivers.tests.unit.amt import utils as test_utils
 
-INFO_DICT = test_utils.get_test_amt_info()
 CONF = cfg.CONF
 
 
 @mock.patch.object(amt_common, 'pywsman', spec_set=mock_specs.PYWSMAN_SPEC)
-class AMTManagementInteralMethodsTestCase(db_base.DbTestCase):
-
-    def setUp(self):
-        super(AMTManagementInteralMethodsTestCase, self).setUp()
-        self.config(enabled_drivers=['fake_amt_fake'])
-        self.node = obj_utils.create_test_node(self.context,
-                                               driver='fake_amt_fake',
-                                               driver_info=INFO_DICT)
+class AMTManagementInteralMethodsTestCase(test_utils.BaseAMTTest):
 
     @mock.patch.object(amt_common, 'awake_amt_interface', spec_set=True,
                        autospec=True)
@@ -124,15 +114,7 @@ class AMTManagementInteralMethodsTestCase(db_base.DbTestCase):
         self.assertTrue(mock_aw.called)
 
 
-class AMTManagementTestCase(db_base.DbTestCase):
-
-    def setUp(self):
-        super(AMTManagementTestCase, self).setUp()
-        self.config(enabled_drivers=['fake_amt_fake'])
-        self.info = INFO_DICT
-        self.node = obj_utils.create_test_node(self.context,
-                                               driver='fake_amt_fake',
-                                               driver_info=self.info)
+class AMTManagementTestCase(test_utils.BaseAMTTest):
 
     def test_get_properties(self):
         expected = amt_common.COMMON_PROPERTIES
