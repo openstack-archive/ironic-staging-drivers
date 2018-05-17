@@ -19,7 +19,6 @@ import os
 from ironic.common import exception
 from ironic.conductor import task_manager
 from ironic.drivers.modules import ipmitool
-from ironic.tests.unit.conductor import mgr_utils
 from ironic.tests.unit.db import base as db_base
 from ironic.tests.unit.objects import utils as obj_utils
 from ironic_lib import utils as ironic_utils
@@ -66,7 +65,7 @@ class IntelNMPassthruTestCase(db_base.DbTestCase):
 
     def setUp(self):
         super(IntelNMPassthruTestCase, self).setUp()
-        mgr_utils.mock_the_extension_manager(driver='fake_nm')
+        self.config(enabled_drivers=['fake_nm'])
         self.node = obj_utils.create_test_node(self.context, driver='fake_nm')
         self.temp_filename = os.path.join(CONF.tempdir, self.node.uuid +
                                           '.sdr')

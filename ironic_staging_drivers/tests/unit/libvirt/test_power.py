@@ -26,7 +26,6 @@ from ironic.common import exception
 from ironic.common import states
 from ironic.conductor import task_manager
 from ironic.drivers import utils as driver_utils
-from ironic.tests.unit.conductor import mgr_utils
 from ironic.tests.unit.db import base as db_base
 from ironic.tests.unit.objects import utils as obj_utils
 
@@ -225,7 +224,7 @@ class LibvirtPrivateMethodsTestCase(db_base.DbTestCase):
     @mock.patch.object(power, '_get_libvirt_connection',
                        return_value=FakeConnection())
     def test__get_domain_by_macs(self, libvirt_conn_mock):
-        mgr_utils.mock_the_extension_manager(driver="fake_libvirt_fake")
+        self.config(enabled_drivers=["fake_libvirt_fake"])
         driver_factory.get_driver("fake_libvirt_fake")
         node = obj_utils.create_test_node(
             self.context,
@@ -244,7 +243,7 @@ class LibvirtPrivateMethodsTestCase(db_base.DbTestCase):
     @mock.patch.object(power, '_get_libvirt_connection',
                        return_value=FakeConnection())
     def test__get_domain_by_macs_not_found(self, libvirt_conn_mock):
-        mgr_utils.mock_the_extension_manager(driver="fake_libvirt_fake")
+        self.config(enabled_drivers=["fake_libvirt_fake"])
         driver_factory.get_driver("fake_libvirt_fake")
         node = obj_utils.create_test_node(
             self.context,
@@ -432,7 +431,7 @@ class LibvirtPowerTestCase(db_base.DbTestCase):
 
     def setUp(self):
         super(LibvirtPowerTestCase, self).setUp()
-        mgr_utils.mock_the_extension_manager(driver="fake_libvirt_fake")
+        self.config(enabled_drivers=["fake_libvirt_fake"])
         driver_factory.get_driver("fake_libvirt_fake")
         self.node = obj_utils.create_test_node(
             self.context,
@@ -566,7 +565,7 @@ class LibvirtManagementTestCase(db_base.DbTestCase):
 
     def setUp(self):
         super(LibvirtManagementTestCase, self).setUp()
-        mgr_utils.mock_the_extension_manager(driver="fake_libvirt_fake")
+        self.config(enabled_drivers=["fake_libvirt_fake"])
         driver_factory.get_driver("fake_libvirt_fake")
         self.node = obj_utils.create_test_node(
             self.context,

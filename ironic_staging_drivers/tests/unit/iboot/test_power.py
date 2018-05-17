@@ -23,7 +23,6 @@ from ironic.common import driver_factory
 from ironic.common import exception as ironic_exception
 from ironic.common import states
 from ironic.conductor import task_manager
-from ironic.tests.unit.conductor import mgr_utils
 from ironic.tests.unit.db import base as db_base
 from ironic.tests.unit.objects import utils as obj_utils
 
@@ -262,7 +261,7 @@ class IBootDriverTestCase(db_base.DbTestCase):
         self.config(max_retry=0, group='iboot')
         self.config(retry_interval=0, group='iboot')
         self.config(reboot_delay=0, group='iboot')
-        mgr_utils.mock_the_extension_manager(driver='fake_iboot_fake')
+        self.config(enabled_drivers=['fake_iboot_fake'])
         self.driver = driver_factory.get_driver('fake_iboot_fake')
         self.node = obj_utils.create_test_node(
             self.context,

@@ -17,7 +17,6 @@ import time
 from ironic.common import boot_devices
 from ironic.common import states
 from ironic.conductor import task_manager
-from ironic.tests.unit.conductor import mgr_utils
 from ironic.tests.unit.db import base as db_base
 from ironic.tests.unit.objects import utils as obj_utils
 import mock
@@ -41,10 +40,8 @@ class oVirtDriverTestCase(db_base.DbTestCase):
     def setUp(self):
         super(oVirtDriverTestCase, self).setUp()
         self.config(enabled_power_interfaces='staging-ovirt',
-                    enabled_management_interfaces='staging-ovirt')
-        namespace = 'ironic.hardware.types'
-        mgr_utils.mock_the_extension_manager(driver='staging-ovirt',
-                                             namespace=namespace)
+                    enabled_management_interfaces='staging-ovirt',
+                    enabled_hardware_types=['staging-ovirt'])
         self.node = obj_utils.create_test_node(self.context,
                                                driver='staging-ovirt',
                                                driver_info=_ovirt_info())

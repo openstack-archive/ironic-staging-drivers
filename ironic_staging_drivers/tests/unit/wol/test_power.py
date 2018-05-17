@@ -22,7 +22,6 @@ from ironic.common import driver_factory
 from ironic.common import exception as ironic_exception
 from ironic.common import states
 from ironic.conductor import task_manager
-from ironic.tests.unit.conductor import mgr_utils
 from ironic.tests.unit.db import base as db_base
 from ironic.tests.unit.objects import utils as obj_utils
 import mock
@@ -37,7 +36,7 @@ class WakeOnLanPrivateMethodTestCase(db_base.DbTestCase):
 
     def setUp(self):
         super(WakeOnLanPrivateMethodTestCase, self).setUp()
-        mgr_utils.mock_the_extension_manager(driver='fake_wol_fake')
+        self.config(enabled_drivers=['fake_wol_fake'])
         self.driver = driver_factory.get_driver('fake_wol_fake')
         self.node = obj_utils.create_test_node(self.context,
                                                driver='fake_wol_fake')
@@ -131,7 +130,7 @@ class WakeOnLanDriverTestCase(db_base.DbTestCase):
 
     def setUp(self):
         super(WakeOnLanDriverTestCase, self).setUp()
-        mgr_utils.mock_the_extension_manager(driver='fake_wol_fake')
+        self.config(enabled_drivers=['fake_wol_fake'])
         self.driver = driver_factory.get_driver('fake_wol_fake')
         self.node = obj_utils.create_test_node(self.context,
                                                driver='fake_wol_fake')
