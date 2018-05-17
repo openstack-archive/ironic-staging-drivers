@@ -198,4 +198,4 @@ class WakeOnLanPower(base.PowerInterface):
         :returns: A list with the supported power states defined
                   in :mod:`ironic.common.states`.
         """
-        return [states.POWER_ON, states.REBOOT]
+        return [states.POWER_ON, states.POWER_OFF, states.REBOOT]
