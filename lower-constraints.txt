@@ -46,7 +46,6 @@ oslo.log==3.37.0
 oslo.serialization==2.25.0
 oslo.service==1.30.0
 oslo.utils==3.36.0
-oslosphinx==4.18.0
 oslotest==3.3.0
 Paste==2.0.3
 PasteDeploy==1.5.2
