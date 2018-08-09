@@ -16,6 +16,8 @@
       - openstack/ironic-staging-drivers
 
 - project:
+    vars:
+      rtd_webhook_id: '44747'
     check:
       jobs:
         - ironic-staging-drivers-dsvm-all-drivers
