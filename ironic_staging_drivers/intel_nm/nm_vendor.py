@@ -250,7 +250,7 @@ class IntelNMVendorPassthru(base.VendorInterface):
         """
         _execute_nm_command(task, kwargs, nm_commands.set_policy)
 
-    @base.passthru(['GET'], async=False)
+    @base.passthru(['GET'], async_call=False)
     def get_nm_policy(self, task, **kwargs):
         """Get Intel Node Manager policy.
 
@@ -282,7 +282,7 @@ class IntelNMVendorPassthru(base.VendorInterface):
         """
         _execute_nm_command(task, kwargs, nm_commands.set_policy_suspend)
 
-    @base.passthru(['GET'], async=False)
+    @base.passthru(['GET'], async_call=False)
     def get_nm_policy_suspend(self, task, **kwargs):
         """Get Intel Node Manager policy suspend periods.
 
@@ -305,7 +305,7 @@ class IntelNMVendorPassthru(base.VendorInterface):
         """
         _execute_nm_command(task, kwargs, nm_commands.remove_policy_suspend)
 
-    @base.passthru(['GET'], async=False)
+    @base.passthru(['GET'], async_call=False)
     def get_nm_capabilities(self, task, **kwargs):
         """Get Intel Node Manager capabilities.
 
@@ -317,7 +317,7 @@ class IntelNMVendorPassthru(base.VendorInterface):
         return _execute_nm_command(task, kwargs, nm_commands.get_capabilities,
                                    nm_commands.parse_capabilities)
 
-    @base.passthru(['GET'], async=False)
+    @base.passthru(['GET'], async_call=False)
     def get_nm_version(self, task, **kwargs):
         """Get Intel Node Manager version.
 
@@ -329,7 +329,7 @@ class IntelNMVendorPassthru(base.VendorInterface):
         return _execute_nm_command(task, kwargs, nm_commands.get_version,
                                    nm_commands.parse_version)
 
-    @base.passthru(['GET'], async=False)
+    @base.passthru(['GET'], async_call=False)
     def get_nm_statistics(self, task, **kwargs):
         """Get Intel Node Manager statistics.
 
