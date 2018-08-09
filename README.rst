@@ -6,6 +6,9 @@ The Ironic Staging Drivers is used to hold out-of-tree Ironic drivers
 which doesn't have means to provide a 3rd Party CI at this point in
 time which is required by Ironic.
 
+**As Such, the ironic community cannot ensure the working state of
+these drivers.**
+
 The intention of this project is to provide a common place for useful
 drivers resolving the "hundreds of different download sites" problem.
 

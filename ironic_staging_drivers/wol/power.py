@@ -105,6 +105,11 @@ class WakeOnLanPower(base.PowerInterface):
 
     """
 
+    # This interface is not supported by the ironic community
+    # as no third-party CI exists to ensure that this interface
+    # is in a working state against current hardware.
+    supported = False
+
     def get_properties(self):
         return COMMON_PROPERTIES
 

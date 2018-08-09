@@ -20,6 +20,10 @@ class IntelNMHardware(ipmi.IPMIHardware):
 
     Hardware type with Intel Node Manager vendor methods.
     """
+    # This interface is not supported by the ironic community
+    # as no third-party CI exists to ensure that this interface
+    # is in a working state against current hardware.
+    supported = False
 
     @property
     def supported_vendor_interfaces(self):

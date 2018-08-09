@@ -21,6 +21,11 @@ class LibvirtHardware(generic.GenericHardware):
     Uses Libvirt for power and management.
     """
 
+    # This interface is not supported by the ironic community
+    # as no third-party CI exists to ensure that this interface
+    # is in a working state against current hardware.
+    supported = False
+
     @property
     def supported_management_interfaces(self):
         """List of supported management interfaces."""

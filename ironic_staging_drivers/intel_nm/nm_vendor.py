@@ -135,6 +135,11 @@ def _execute_nm_command(task, data, command_func, parse_func=None):
 class IntelNMVendorPassthru(base.VendorInterface):
     """Intel Node Manager policies vendor interface."""
 
+    # This interface is not supported by the ironic community
+    # as no third-party CI exists to ensure that this interface
+    # is in a working state against current hardware.
+    supported = False
+
     def __init__(self):
         schemas_dir = os.path.dirname(__file__)
         for schema in SCHEMAS:

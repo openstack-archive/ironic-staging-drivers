@@ -161,6 +161,11 @@ def _getvm(driver_info):
 
 class OVirtPower(base.PowerInterface):
 
+    # This interface is not supported by the ironic community
+    # as no third-party CI exists to ensure that this interface
+    # is in a working state against current hardware.
+    supported = False
+
     def get_properties(self):
         return PROPERTIES
 
@@ -249,6 +254,11 @@ class OVirtPower(base.PowerInterface):
 
 
 class OVirtManagement(base.ManagementInterface):
+
+    # This interface is not supported by the ironic community
+    # as no third-party CI exists to ensure that this interface
+    # is in a working state against current hardware.
+    supported = False
 
     def get_properties(self):
         return PROPERTIES

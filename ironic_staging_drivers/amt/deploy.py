@@ -23,6 +23,11 @@ from ironic.drivers.modules import iscsi_deploy
 class AMTISCSIDeploy(iscsi_deploy.ISCSIDeploy):
     """AMT-specific version of ISCSIDeploy driver interface"""
 
+    # This interface is not supported by the ironic community
+    # as no third-party CI exists to ensure that this interface
+    # is in a working state against current hardware.
+    supported = False
+
     @task_manager.require_exclusive_lock
     def continue_deploy(self, task):
         if deploy_utils.get_boot_option(task.node) == "netboot":

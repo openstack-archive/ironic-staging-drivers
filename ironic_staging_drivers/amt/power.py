@@ -211,6 +211,11 @@ class AMTPower(base.PowerInterface):
     and reset functions.
     """
 
+    # This interface is not supported by the ironic community
+    # as no third-party CI exists to ensure that this interface
+    # is in a working state against current hardware.
+    supported = False
+
     def get_properties(self):
         return copy.deepcopy(amt_common.COMMON_PROPERTIES)
 
