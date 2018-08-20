@@ -1,0 +1,10 @@
+Code-Review+2: Dmitry Tantsur <divius.inside@gmail.com>
+Code-Review+1: Filippo Inzaghi <zhao.daqing@99cloud.net>
+Code-Review+2: Julia Kreger <juliaashleykreger@gmail.com>
+Workflow+1: Julia Kreger <juliaashleykreger@gmail.com>
+Verified+2: Zuul
+Submitted-by: Zuul
+Submitted-at: Mon, 20 Aug 2018 19:21:48 +0000
+Reviewed-on: https://review.openstack.org/573805
+Project: openstack/ironic-staging-drivers
+Branch: refs/heads/master
