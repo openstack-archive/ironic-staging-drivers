@@ -1,0 +1,10 @@
+Code-Review+1: Dan Prince <dprince@redhat.com>
+Code-Review+2: Vladyslav Drok <vdrok@mirantis.com>
+Code-Review+2: Julia Kreger <juliaashleykreger@gmail.com>
+Workflow+1: Julia Kreger <juliaashleykreger@gmail.com>
+Verified+2: Zuul
+Submitted-by: Zuul
+Submitted-at: Fri, 26 Oct 2018 01:18:18 +0000
+Reviewed-on: https://review.openstack.org/613021
+Project: openstack/ironic-staging-drivers
+Branch: refs/heads/master
