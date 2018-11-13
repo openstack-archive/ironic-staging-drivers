@@ -87,4 +87,4 @@ A short guide follows below:
     not attempt to PXE / network boot the kernel, using `local boot`_ solves this
     known issue.
 
-.. _`local boot`: http://docs.openstack.org/developer/ironic/deploy/install-guide.html#local-boot-with-partition-images
+.. _`local boot`: https://docs.openstack.org/developer/ironic/deploy/install-guide.html#local-boot-with-partition-images
