@@ -18,11 +18,11 @@
 - project:
     vars:
       rtd_webhook_id: '44747'
+    templates:
+      - openstack-lower-constraints-jobs
     check:
       jobs:
         - ironic-staging-drivers-dsvm-all-drivers
-        - openstack-tox-lower-constraints
     gate:
       jobs:
         - ironic-staging-drivers-dsvm-all-drivers
-        - openstack-tox-lower-constraints
