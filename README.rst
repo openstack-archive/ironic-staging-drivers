@@ -45,7 +45,7 @@ How do I submit the code?
 
 #. Get the code::
 
-     git clone git://git.openstack.org/openstack/ironic-staging-drivers
+     git clone https://git.openstack.org/openstack/ironic-staging-drivers
 
 #. Make your changes and write a nice commit message explaining the
    change in details.

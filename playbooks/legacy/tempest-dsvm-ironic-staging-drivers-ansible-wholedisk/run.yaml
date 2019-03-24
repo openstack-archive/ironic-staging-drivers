@@ -18,7 +18,7 @@
               dest: devstack-gate
           EOF
           /usr/zuul-env/bin/zuul-cloner -m clonemap.yaml --cache-dir /opt/git \
-              git://git.openstack.org \
+              https://git.openstack.org \
               openstack-infra/devstack-gate
         executable: /bin/bash
         chdir: '{{ ansible_user_dir }}/workspace'
@@ -54,7 +54,7 @@
         cmd: |
           cat << 'EOF' >> ironic-extra-vars
             export PROJECTS="openstack/ironic-staging-drivers $PROJECTS"
-          export DEVSTACK_LOCAL_CONFIG+=$'\n'"enable_plugin ironic-staging-drivers git://git.openstack.org/openstack/ironic-staging-drivers"
+          export DEVSTACK_LOCAL_CONFIG+=$'\n'"enable_plugin ironic-staging-drivers https://git.openstack.org/openstack/ironic-staging-drivers"
 
           EOF
         chdir: '{{ ansible_user_dir }}/workspace'
