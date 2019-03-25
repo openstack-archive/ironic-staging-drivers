@@ -40,7 +40,7 @@ Configuring and Enabling
 
     [DEFAULT]
     enabled_hardware_types = staging-wol,ipmi
-    enabled_management_interfaces = fake,ipmi
+    enabled_management_interfaces = fake,ipmitool
     enabled_power_interfaces = staging-wol,ipmitool
 
 2. Restart the Ironic conductor service::
