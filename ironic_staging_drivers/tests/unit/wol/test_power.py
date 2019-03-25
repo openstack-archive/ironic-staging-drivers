@@ -213,4 +213,11 @@ class WakeOnLanDriverTestCase(db_base.DbTestCase):
         with task_manager.acquire(
                 self.context, self.node.uuid, shared=True) as task:
             pstate = task.driver.power.get_supported_power_states(task)
-            self.assertEqual([states.POWER_ON, states.REBOOT], pstate)
+            self.assertEqual(
+                [
+                    states.POWER_ON,
+                    states.POWER_OFF,
+                    states.REBOOT
+                ],
+                pstate
+            )
