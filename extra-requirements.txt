@@ -1,1 +1,1 @@
-git+git://git.openstack.org/openstack/ironic#egg=ironic
+git+https://git.openstack.org/openstack/ironic@stable/rocky#egg=ironic
