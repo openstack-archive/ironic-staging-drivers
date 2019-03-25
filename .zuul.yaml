@@ -16,6 +16,14 @@
       - openstack/ironic-staging-drivers
 
 - project:
+    vars:
+      rtd_webhook_id: '44747'
+    templates:
+      - openstack-python-jobs
+      - openstack-python35-jobs
+      - openstack-lower-constraints-jobs
+      - docs-on-readthedocs
+      - check-requirements
     check:
       jobs:
         - ironic-staging-drivers-dsvm-all-drivers
