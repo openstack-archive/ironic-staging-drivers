@@ -1,6 +1,0 @@
-[run]
-branch = True
-source = ironic_staging_drivers
-
-[report]
-ignore_errors = True

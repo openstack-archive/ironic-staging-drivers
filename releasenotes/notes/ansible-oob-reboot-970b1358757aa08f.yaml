@@ -1,5 +1,0 @@
----
-features:
-  - |
-    ansible-deploy driver now honors ``deploy-forces-oob-reboot`` driver
-    property

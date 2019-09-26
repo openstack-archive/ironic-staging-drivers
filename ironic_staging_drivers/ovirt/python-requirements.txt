@@ -1,1 +1,0 @@
-ovirt-engine-sdk-python>=4.0.0 # Apache-2.0
